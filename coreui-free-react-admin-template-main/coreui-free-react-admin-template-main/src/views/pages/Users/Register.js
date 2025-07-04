@@ -43,6 +43,7 @@ const Register = () => {
     }
 
     try {
+      console.log('🛂 Token en localStorage:', localStorage.getItem('token'))
       await api.post('/users', form)      // token se envía automáticamente
       setSuccess(true)
       setForm({ username: '', password: '', role: '' })
@@ -99,7 +100,7 @@ const Register = () => {
                   {/* Password */}
                   <CInputGroup className="mb-3">
                     <CInputGroupText>
-                      <CIcon icon={iconSet.cilLock} />
+                      <CIcon icon={iconSet.cilClock} />
                     </CInputGroupText>
                     <CFormInput
                       type="password"

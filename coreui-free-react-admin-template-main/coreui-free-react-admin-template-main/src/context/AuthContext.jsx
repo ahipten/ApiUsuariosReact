@@ -8,11 +8,12 @@ const AuthContext = createContext(null)
 const isExpired = (token) => {
   try {
     const { exp } = jwtDecode(token)
-    return Date.now() >= exp * 1000
+    return Date.now() >= exp * 1000 - 30000 // 30s de tolerancia
   } catch {
     return true
   }
 }
+
 
 // 🔐 Verifica issuer y audiencia si se requiere
 const isValidClaims = (token) => {
@@ -37,26 +38,29 @@ export const AuthProvider = ({ children }) => {
   })
 
   // 🟢 Login
-  const login = async (username, password) => {
-    try {
-      const { data } = await api.post('/auth/login', { username, password })
+const login = async (username, password) => {
+  try {
+    const { data } = await api.post('/auth/login', { username, password })
 
-      if (!data?.token || typeof data.token !== 'string' || !data.token.includes('.')) {
-        throw new Error('Token JWT inválido.')
-      }
-
-      if (isExpired(data.token) || !isValidClaims(data.token)) {
-        throw new Error('El token recibido no es válido o ya expiró.')
-      }
-
-      localStorage.setItem('token', data.token)
-      setToken(data.token)
-      setUser(jwtDecode(data.token))
-    } catch (err) {
-      console.error('Error en login:', err.message)
-      throw err
+    if (!data?.token || typeof data.token !== 'string' || !data.token.includes('.')) {
+      throw new Error('Token JWT inválido.')
     }
+
+    if (isExpired(data.token) || !isValidClaims(data.token)) {
+      throw new Error('El token recibido no es válido o ya expiró.')
+    }
+
+    localStorage.setItem('token', data.token)
+    setToken(data.token)
+    setUser(jwtDecode(data.token))
+
+    console.log('✅ Token guardado en localStorage')
+    return true // <- indica éxito
+  } catch (err) {
+    console.error('Error en login:', err.message)
+    throw err
   }
+}
 
   // 🔴 Logout
   const logout = () => {

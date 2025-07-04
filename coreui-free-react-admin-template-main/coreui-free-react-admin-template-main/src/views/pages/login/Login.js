@@ -25,15 +25,22 @@ const Login = () => {
   const [password, setPassword] = useState('')
   const [error, setError] = useState(null)
 
-  const handleSubmit = async (e) => {
-    e.preventDefault()
-    try {
-      await login(username, password)
-      navigate('/')
-    } catch (err) {
-      setError('Credenciales inválidas')
+const handleSubmit = async (e) => {
+  e.preventDefault()
+  setError(null)
+
+  try {
+    const success = await login(username, password)
+    if (success) {
+      // Espera explícita para asegurar que el interceptor use el token
+      setTimeout(() => {
+        navigate('/')
+      }, 100) // 100 ms suele ser suficiente
     }
+  } catch (err) {
+    setError('Credenciales inválidas')
   }
+}
 
   return (
     <div className="bg-light min-vh-100 d-flex flex-row align-items-center">
