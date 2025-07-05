@@ -1,28 +1,42 @@
 // src/api/axios.js
 import axios from 'axios'
 
+// 👉 Crea la instancia principal de Axios
 const api = axios.create({
   baseURL: 'http://localhost:5001/api',
 })
 
-// Interceptor para agregar el token a las peticiones
+// 🔎 Función auxiliar: ¿es un JWT bien formado?
+const isValidJwt = (token) =>
+  typeof token === 'string' &&
+  token.split('.').length === 3 &&
+  !token.includes('\n') &&
+  !token.includes('\r')
+
+// 🔐 Interceptor de solicitud: añade el token JWT si es válido
 api.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('token')
+    let token = localStorage.getItem('token') || ''
 
-    // Evita mostrar advertencia si la solicitud es de login o registro
-    const isAuthRoute = config.url.includes('/auth/login') || config.url.includes('/auth/register')
+    // 🔄 Limpieza adicional del token (comillas, saltos de línea)
+    token = token.trim().replace(/^["']|["']$/g, '').replace(/\r?\n|\r/g, '')
 
-    if (token) {
+    const isAuthRoute =
+      config.url.includes('/auth/login') || config.url.includes('/auth/register')
+
+    if (token && isValidJwt(token)) {
       config.headers.Authorization = `Bearer ${token}`
-      console.log('✅ Token añadido al header.')
+      console.log(`✅ JWT añadido al header. Longitud: ${token.length}`)
     } else if (!isAuthRoute) {
-      console.warn('⚠️ No se encontró token en localStorage')
+      console.warn('⚠️ Token ausente o malformado. No se añadió Authorization.')
     }
 
     return config
   },
-  (error) => Promise.reject(error)
+  (error) => {
+    console.error('❌ Error en interceptor de solicitud:', error)
+    return Promise.reject(error)
+  }
 )
 
 export default api

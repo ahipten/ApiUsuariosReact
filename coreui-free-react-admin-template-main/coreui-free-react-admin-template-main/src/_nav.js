@@ -442,7 +442,7 @@ const _nav = [
       {
         component: CNavItem,
         name: 'ELiminar',
-        to: '/Usersedit',
+        to: '/UsersDelete',
         icon: <CIcon icon={cilTrash} customClassName="nav-icon" />,
       },
     ],

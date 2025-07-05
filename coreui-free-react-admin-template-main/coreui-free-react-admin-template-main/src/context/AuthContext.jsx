@@ -1,21 +1,21 @@
+// src/context/AuthContext.jsx
 import React, { createContext, useContext, useState, useEffect } from 'react'
 import { jwtDecode } from 'jwt-decode'
 import api from '../api/axios'
 
-const AuthContext = createContext(null)
+/* ---------------------------------- utils --------------------------------- */
 
-// 🔐 Verifica expiración del token
+// ¿El token está expirado? 30 s de tolerancia
 const isExpired = (token) => {
   try {
     const { exp } = jwtDecode(token)
-    return Date.now() >= exp * 1000 - 30000 // 30s de tolerancia
+    return Date.now() >= exp * 1000 - 30_000
   } catch {
     return true
   }
 }
 
-
-// 🔐 Verifica issuer y audiencia si se requiere
+// ¿Issuer y Audience son los correctos?
 const isValidClaims = (token) => {
   try {
     const { iss, aud } = jwtDecode(token)
@@ -25,7 +25,12 @@ const isValidClaims = (token) => {
   }
 }
 
+/* ----------------------------- context setup ------------------------------ */
+
+const AuthContext = createContext(null)
+
 export const AuthProvider = ({ children }) => {
+  /* ----------------------------- estado local ----------------------------- */
   const [user, setUser] = useState(null)
   const [token, setToken] = useState(() => {
     const stored = localStorage.getItem('token')
@@ -37,39 +42,52 @@ export const AuthProvider = ({ children }) => {
     return stored
   })
 
-  // 🟢 Login
-const login = async (username, password) => {
-  try {
-    const { data } = await api.post('/auth/login', { username, password })
+  /* ------------------------------ LOGIN ----------------------------------- */
+  const login = async (username, password) => {
+    try {
+      // petición al backend
+      const { data } = await api.post('/auth/login', { username, password })
 
-    if (!data?.token || typeof data.token !== 'string' || !data.token.includes('.')) {
-      throw new Error('Token JWT inválido.')
+      // desestructuramos respuesta
+      const { token: rawToken, username: userName, role } = data
+
+      // validación mínima
+      if (!rawToken || typeof rawToken !== 'string' || !rawToken.includes('.'))
+        throw new Error('Token JWT inválido.')
+
+      if (isExpired(rawToken) || !isValidClaims(rawToken))
+        throw new Error('El token recibido no es válido o ya expiró.')
+
+      // limpiamos posibles saltos de línea
+      const cleanToken = rawToken.replace(/\r?\n|\r/g, '')
+
+      // guardamos en localStorage
+      localStorage.setItem('token', cleanToken)
+      localStorage.setItem('username', userName)
+      localStorage.setItem('role', role)
+
+      // actualizamos estado global
+      setToken(cleanToken)
+      setUser(jwtDecode(cleanToken))
+
+      console.log('✅ Token guardado en localStorage')
+      return true
+    } catch (err) {
+      console.error('Error en login:', err.message)
+      throw err
     }
-
-    if (isExpired(data.token) || !isValidClaims(data.token)) {
-      throw new Error('El token recibido no es válido o ya expiró.')
-    }
-
-    localStorage.setItem('token', data.token)
-    setToken(data.token)
-    setUser(jwtDecode(data.token))
-
-    console.log('✅ Token guardado en localStorage')
-    return true // <- indica éxito
-  } catch (err) {
-    console.error('Error en login:', err.message)
-    throw err
   }
-}
 
-  // 🔴 Logout
+  /* ------------------------------ LOGOUT ---------------------------------- */
   const logout = () => {
     localStorage.removeItem('token')
+    localStorage.removeItem('username')
+    localStorage.removeItem('role')
     setToken(null)
     setUser(null)
   }
 
-  // 🔄 Sincronizar entre pestañas
+  /* ---------- sincronizar entre pestañas (evento storage) ----------------- */
   useEffect(() => {
     const syncStorage = () => {
       const t = localStorage.getItem('token')
@@ -84,21 +102,22 @@ const login = async (username, password) => {
     return () => window.removeEventListener('storage', syncStorage)
   }, [])
 
-  // ⚠️ Interceptor global para manejar 401
+  /* ---------------- interceptor global para 401 --------------------------- */
   useEffect(() => {
     const interceptor = api.interceptors.response.use(
-      res => res,
-      err => {
+      (res) => res,
+      (err) => {
         if (err.response?.status === 401) {
-          console.warn('Token expirado o inválido. Cerrando sesión automáticamente.')
+          console.warn('Token expirado/invalidado – cerrando sesión.')
           logout()
         }
         return Promise.reject(err)
-      }
+      },
     )
     return () => api.interceptors.response.eject(interceptor)
   }, [])
 
+  /* --------------------------- contexto expuesto -------------------------- */
   return (
     <AuthContext.Provider value={{ user, token, login, logout }}>
       {children}
