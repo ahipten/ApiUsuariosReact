@@ -517,18 +517,18 @@ const _nav = [
       {
         component: CNavItem,
         name: 'Registrar',
-        to: '/register',
+        to: '/sensorregister',
       },
       {
         component: CNavItem,
         name: 'Modificar',
-        to: '/u400',
+        to: '/sensoredit',
         icon: <CIcon icon={cilPencil} customClassName="nav-icon" />,
       },
       {
         component: CNavItem,
         name: 'ELiminar',
-        to: '/500',
+        to: '/sensordelete',
         icon: <CIcon icon={cilTrash} customClassName="nav-icon" />,
       },
     ],

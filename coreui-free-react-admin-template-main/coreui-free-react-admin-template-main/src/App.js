@@ -24,9 +24,13 @@ const CultivoCreate = React.lazy(() => import('./views/pages/Cultivo/CultivoCrea
 const CultivoEdit = React.lazy(() => import('./views/pages/Cultivo/CultivoEdit'))
 const CultivoDelete = React.lazy(() => import('./views/pages/Cultivo/CultivoDelete'))
 //Lectura
-const LecturaCreate = React.lazy(() => import('./views/pages/Lectura/LecturaRegister'))
-const LecturaEdit = React.lazy(() => import('./views/pages/Lectura/LecturaEdit'))
-const LecturaDelete = React.lazy(() => import('./views/pages/Lectura/LecturaDelete'))
+const LecturaCreate = React.lazy(() => import('./views/pages/Lecturas/LecturaRegister'))
+const LecturaEdit = React.lazy(() => import('./views/pages/Lecturas/LecturaEdit'))
+const LecturaDelete = React.lazy(() => import('./views/pages/Lecturas/LecturaDelete'))
+//Sensores
+const SensorCreate = React.lazy(() => import('./views/pages/Sensores/SensorRegister'))
+const SensorEdit = React.lazy(() => import('./views/pages/Sensores/SensorEdit'))
+const SensorDelete = React.lazy(() => import('./views/pages/Sensores/SensorDelete'))
 // Pages 404 y 500
 // Estas páginas se pueden usar para manejar errores o rutas no encontradas
 const Page404 = React.lazy(() => import('./views/pages/page404/Page404'))
@@ -70,6 +74,9 @@ const AppContent = () => {
           <Route path="/lecturaregister" name="Create Lectura" element={<LecturaCreate />} />
           <Route path="/lecturaedit" name="Edit Lectura" element={<LecturaEdit />} />
           <Route path="/lecturadelete" name="Delete Lectura" element={<LecturaDelete />} />
+          <Route path="/sensorregister" name="Create Sensor" element={<SensorCreate />} />
+          <Route path="/sensoredit" name="Edit Sensor" element={<SensorEdit />} />
+          <Route path="/sensordelete" name="Delete Sensor" element={<SensorDelete />} />
           {/* Redirección condicional: si hay usuario, renderiza el layout. Si no, ve a login */}
           <Route path="*" name="Home" element={user ? <DefaultLayout /> : <Navigate to="/login" />} />
         </Routes>
