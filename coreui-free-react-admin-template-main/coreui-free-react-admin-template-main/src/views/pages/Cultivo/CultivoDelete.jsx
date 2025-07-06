@@ -1,45 +1,58 @@
-import React, { useState, useEffect } from 'react'
+// src/views/pages/Cultivo/CultivoDelete.jsx
+import React, { useEffect, useState } from 'react'
 import {
   CButton,
   CCard,
   CCardBody,
-  CCardGroup,
   CCol,
   CContainer,
   CRow,
   CAlert,
+  CTable,
+  CTableHead,
+  CTableBody,
+  CTableRow,
+  CTableHeaderCell,
+  CTableDataCell,
 } from '@coreui/react'
-import { useNavigate, useParams } from 'react-router-dom'
 import api from '../../../api/axios'
 import { useAuth } from '../../../context/AuthContext'
+import { useNavigate } from 'react-router-dom'
 
 const CultivoDelete = () => {
-  const [cultivo, setCultivo] = useState(null)
+  const [cultivos, setCultivos] = useState([])
+  const [selected, setSelected] = useState(null) // cultivo seleccionado para eliminar
   const [error, setError] = useState(null)
-  const [success, setSuccess] = useState(false)
-
-  const { id } = useParams()
-  const navigate = useNavigate()
+  const [success, setSuccess] = useState(null)
   const { logout } = useAuth()
+  const navigate = useNavigate()
+
+  const fetchCultivos = async () => {
+    try {
+      const { data } = await api.get('/cultivos')
+      setCultivos(data)
+    } catch {
+      setError('Error al cargar cultivos.')
+    }
+  }
 
   useEffect(() => {
-    const fetchCultivo = async () => {
-      try {
-        const { data } = await api.get(`/cultivos/${id}`)
-        setCultivo(data)
-      } catch (err) {
-        setError('No se pudo cargar el cultivo.')
-      }
-    }
+    fetchCultivos()
+  }, [])
 
-    fetchCultivo()
-  }, [id])
+  const confirmDelete = (cultivo) => {
+    setSelected(cultivo)
+    setSuccess(null)
+  }
 
   const handleDelete = async () => {
+    if (!selected) return
+
     try {
-      await api.delete(`/cultivos/${id}`)
-      setSuccess(true)
-      setTimeout(() => navigate('/cultivos'), 1500)
+      await api.delete(`/cultivos/${selected.id}`)
+      setSuccess('Cultivo eliminado correctamente.')
+      setSelected(null)
+      fetchCultivos()
     } catch (err) {
       if (err.response?.status === 401 || err.response?.status === 403) {
         setError('Sesión expirada o sin permisos para eliminar.')
@@ -51,54 +64,88 @@ const CultivoDelete = () => {
     }
   }
 
-  const handleCancel = () => navigate(-1)
+  const handleReturn = () => navigate(-1)
 
   return (
     <CContainer>
-      <CRow className="justify-content-center">
-        <CCol md={8}>
-          <CCardGroup>
-            <CCard className="p-4">
+      <h2 className="mb-4">Cultivos</h2>
+
+      {error && (
+        <CAlert color="danger" dismissible onClose={() => setError(null)}>
+          {error}
+        </CAlert>
+      )}
+      {success && (
+        <CAlert color="success" dismissible onClose={() => setSuccess(null)}>
+          {success}
+        </CAlert>
+      )}
+
+      {/* Tabla de cultivos */}
+      <CTable hover responsive>
+        <CTableHead>
+          <CTableRow>
+            <CTableHeaderCell>ID</CTableHeaderCell>
+            <CTableHeaderCell>Nombre</CTableHeaderCell>
+            <CTableHeaderCell>Acciones</CTableHeaderCell>
+          </CTableRow>
+        </CTableHead>
+        <CTableBody>
+          {cultivos.map((c) => (
+            <CTableRow key={c.id}>
+              <CTableDataCell>{c.id}</CTableDataCell>
+              <CTableDataCell>{c.nombre}</CTableDataCell>
+              <CTableDataCell>
+                <CButton color="danger" size="sm" onClick={() => confirmDelete(c)}>
+                  Eliminar
+                </CButton>
+              </CTableDataCell>
+            </CTableRow>
+          ))}
+        </CTableBody>
+      </CTable>
+
+      {/* Sección de confirmación */}
+      {selected && (
+        <CRow className="justify-content-center mt-5">
+          <CCol md={6}>
+            <CCard>
               <CCardBody>
-                <h1>Eliminar Cultivo</h1>
-                <p className="text-medium-emphasis">¿Estás seguro de eliminar el siguiente cultivo?</p>
-
-                {error && (
-                  <CAlert color="danger" dismissible onClose={() => setError(null)}>
-                    {error}
-                  </CAlert>
-                )}
-
-                {success && (
-                  <CAlert color="success">
-                    Cultivo eliminado correctamente.
-                  </CAlert>
-                )}
-
-                {cultivo && !success && (
-                  <>
-                    <p><strong>ID:</strong> {cultivo.id}</p>
-                    <p><strong>Nombre:</strong> {cultivo.nombre}</p>
-
-                    <CRow className="mt-4">
-                      <CCol xs={6}>
-                        <CButton color="danger" onClick={handleDelete}>
-                          Confirmar eliminación
-                        </CButton>
-                      </CCol>
-                      <CCol xs={6} className="text-end">
-                        <CButton color="secondary" variant="outline" onClick={handleCancel}>
-                          Cancelar
-                        </CButton>
-                      </CCol>
-                    </CRow>
-                  </>
-                )}
+                <h5>Confirmar eliminación</h5>
+                <p>
+                  ¿Seguro que deseas eliminar el cultivo <strong>{selected.nombre}</strong> (ID {selected.id})?
+                </p>
+                <CRow className="mb-2">
+                  <CCol xs={6}>
+                    <CButton color="danger" onClick={handleDelete} className="px-4">
+                      Confirmar
+                    </CButton>
+                  </CCol>
+                  <CCol xs={6} className="text-end">
+                    <CButton
+                      color="secondary"
+                      variant="outline"
+                      onClick={() => setSelected(null)}
+                      className="px-4"
+                    >
+                      Cancelar
+                    </CButton>
+                  </CCol>
+                </CRow>
+                <CButton color="secondary" onClick={handleReturn}>Volver</CButton>
               </CCardBody>
             </CCard>
-          </CCardGroup>
-        </CCol>
-      </CRow>
+          </CCol>
+        </CRow>
+      )}
+
+      {!selected && (
+        <CRow className="mt-4">
+          <CCol className="text-end">
+            <CButton color="secondary" onClick={handleReturn}>Volver</CButton>
+          </CCol>
+        </CRow>
+      )}
     </CContainer>
   )
 }
