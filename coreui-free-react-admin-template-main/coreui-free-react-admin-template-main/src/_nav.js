@@ -461,17 +461,17 @@ const _nav = [
       {
         component: CNavItem,
         name: 'Registrar',
-        to: '/register',
+        to: '/cultivocreate',
       },
       {
         component: CNavItem,
         name: 'Modificar',
-        to: '/404',
+        to: '/cultivoedit',
       },
       {
         component: CNavItem,
         name: 'ELiminar',
-        to: '/500',
+        to: '/cultivodelete',
       },
     ],
   },
@@ -489,17 +489,17 @@ const _nav = [
       {
         component: CNavItem,
         name: 'Registrar',
-        to: '/register',
+        to: '/lecturaregister',
       },
       {
         component: CNavItem,
         name: 'Modificar',
-        to: '/404',
+        to: '/lecturaedit',
       },
       {
         component: CNavItem,
         name: 'ELiminar',
-        to: '/500',
+        to: '/lecturadelete',
       },
     ],
   },
