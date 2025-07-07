@@ -15,82 +15,86 @@ import {
   CAlert,
 } from '@coreui/react'
 import { useNavigate } from 'react-router-dom'
-import api from "../../../api/axios"               // usa '../../../api/axios' si no tienes alias '@'
+import api from "../../../api/axios" // ajusta la ruta según tu estructura
 
-/* ─────────── Utilidad para generar contraseñas seguras ─────────── */
+/* ─────────── Generador de contraseña ─────────── */
 const generatePassword = (length = 10) => {
-  const upper   = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
-  const lower   = 'abcdefghijklmnopqrstuvwxyz'
+  const upper = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+  const lower = 'abcdefghijklmnopqrstuvwxyz'
   const numbers = '0123456789'
   const symbols = '!@#$%^&*()-_=+[]{}'
   const all = upper + lower + numbers + symbols
 
-  // Garantizar al menos 1 de cada tipo
   let pwd = [
     upper[Math.floor(Math.random() * upper.length)],
     numbers[Math.floor(Math.random() * numbers.length)],
     symbols[Math.floor(Math.random() * symbols.length)],
   ]
 
-  // Completar el resto
   for (let i = pwd.length; i < length; i++) {
     pwd.push(all[Math.floor(Math.random() * all.length)])
   }
 
-  // Mezclar
   return pwd.sort(() => 0.5 - Math.random()).join('')
 }
 
 const UsersEdit = () => {
-  /* ─────────── Estados ─────────── */
-  const [users, setUsers]   = useState([])
+  const [users, setUsers] = useState([])
   const [editId, setEditId] = useState(null)
-  const [error, setError]   = useState(null)
+  const [error, setError] = useState(null)
   const [success, setSuccess] = useState(null)
-
   const navigate = useNavigate()
 
-  /* ─────────── Cargar usuarios ─────────── */
   useEffect(() => {
     api.get('/users')
       .then(res => setUsers(res.data))
       .catch(() => setError('Error al cargar usuarios.'))
   }, [])
 
-  /* ─────────── Cambios en edición inline ─────────── */
   const handleChange = (e, id) => {
     const { name, value } = e.target
     setUsers(users.map(u => (u.id === id ? { ...u, [name]: value } : u)))
   }
 
-  /* ─────────── Guardar cambios ─────────── */
   const handleSave = async (id) => {
-    setError(null); setSuccess(null)
+    setError(null)
+    setSuccess(null)
     try {
       const user = users.find(u => u.id === id)
       await api.put(`/users/${id}`, user)
       setSuccess('Usuario actualizado correctamente.')
       setEditId(null)
-    } catch {
+    } catch (err) {
       setError('Error al actualizar usuario.')
+      console.error(err.response?.data || err)
     }
   }
 
-  /* ─────────── Resetear contraseña ─────────── */
   const handleResetPassword = async (id) => {
     const newPassword = generatePassword(12)
-    if (!window.confirm(`Se generará una nueva contraseña para el usuario.\n\n${newPassword}\n\n¿Continuar?`)) return
-    setError(null); setSuccess(null)
+    if (!window.confirm(`Se generará una nueva contraseña:\n\n${newPassword}\n\n¿Deseas continuar?`)) return
+
+    setError(null)
+    setSuccess(null)
 
     try {
-      await api.put(`/users/${id}`, { password: newPassword })
-      setSuccess(`Contraseña restablecida. Nueva contraseña: ${newPassword}`)
-    } catch {
+      const user = users.find(u => u.id === id)
+
+      const updatedUser = {
+        id: user.id,
+        username: user.username,
+        role: user.role,
+        password: newPassword
+      }
+
+      await api.put(`/users/${id}`, updatedUser)
+      setSuccess(`Contraseña restablecida correctamente. Nueva contraseña: ${newPassword}`)
+    } catch (err) {
       setError('Error al resetear la contraseña.')
+      console.error(err.response?.data || err)
     }
   }
 
-  /* ─────────── Render ─────────── */
   return (
     <>
       {success && (
@@ -130,7 +134,6 @@ const UsersEdit = () => {
                 <CTableRow key={user.id}>
                   <CTableDataCell>{user.id}</CTableDataCell>
 
-                  {/* Username editable */}
                   <CTableDataCell>
                     {editId === user.id ? (
                       <CFormInput
@@ -143,7 +146,6 @@ const UsersEdit = () => {
                     )}
                   </CTableDataCell>
 
-                  {/* Rol editable */}
                   <CTableDataCell>
                     {editId === user.id ? (
                       <CFormSelect
@@ -151,7 +153,7 @@ const UsersEdit = () => {
                         value={user.role}
                         onChange={(e) => handleChange(e, user.id)}
                         options={[
-                          { label: 'User',  value: 'User'  },
+                          { label: 'User', value: 'User' },
                           { label: 'Admin', value: 'Admin' },
                         ]}
                       />
@@ -160,7 +162,6 @@ const UsersEdit = () => {
                     )}
                   </CTableDataCell>
 
-                  {/* Botones */}
                   <CTableDataCell className="d-flex gap-2">
                     {editId === user.id ? (
                       <CButton size="sm" color="success" onClick={() => handleSave(user.id)}>
@@ -178,7 +179,7 @@ const UsersEdit = () => {
                       variant="outline"
                       onClick={() => handleResetPassword(user.id)}
                     >
-                      Reset Password
+                      Reset Password
                     </CButton>
                   </CTableDataCell>
                 </CTableRow>

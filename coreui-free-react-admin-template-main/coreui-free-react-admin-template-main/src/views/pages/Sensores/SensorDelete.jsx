@@ -1,4 +1,4 @@
-// src/views/sensores/SensorDelete.js
+// src/views/sensores/SensorDelete.jsx
 import React, { useEffect, useState } from 'react'
 import {
   CButton,
@@ -8,85 +8,161 @@ import {
   CContainer,
   CRow,
   CAlert,
+  CTable,
+  CTableHead,
+  CTableBody,
+  CTableRow,
+  CTableHeaderCell,
+  CTableDataCell,
 } from '@coreui/react'
-import { useNavigate, useParams } from 'react-router-dom'
 import api from '../../../api/axios'
+import { useAuth } from '../../../context/AuthContext'
+import { useNavigate } from 'react-router-dom'
 
 const SensorDelete = () => {
-  const [sensor, setSensor] = useState(null)
+  const [sensores, setSensores] = useState([])
+  const [usuarios, setUsuarios] = useState([])
+  const [selected, setSelected] = useState(null) // sensor seleccionado
   const [error, setError] = useState(null)
-  const [success, setSuccess] = useState(false)
+  const [success, setSuccess] = useState(null)
 
+  const { logout } = useAuth()
   const navigate = useNavigate()
-  const { id } = useParams()
 
-  useEffect(() => {
-    const fetchSensor = async () => {
-      try {
-        const { data } = await api.get(`/sensores/${id}`)
-        setSensor(data)
-      } catch (err) {
-        setError('No se pudo cargar el sensor.')
-      }
-    }
-    fetchSensor()
-  }, [id])
-
-  const handleDelete = async () => {
+  /* ─────────── Cargar sensores y usuarios ─────────── */
+  const fetchData = async () => {
     try {
-      await api.delete(`/sensores/${id}`)
-      setSuccess(true)
-      setTimeout(() => navigate('/sensores'), 1500)
-    } catch (err) {
-      setError('Error al eliminar el sensor.')
+      const [sensorRes, userRes] = await Promise.all([
+        api.get('/sensores'),
+        api.get('/users'),
+      ])
+      setSensores(sensorRes.data)
+      setUsuarios(userRes.data)
+    } catch {
+      setError('Error al cargar sensores.')
     }
   }
 
-  const handleCancel = () => navigate(-1)
+  useEffect(() => {
+    fetchData()
+  }, [])
+
+  /* ─────────── Seleccionar para eliminar ─────────── */
+  const confirmDelete = (sensor) => {
+    setSelected(sensor)
+    setSuccess(null)
+  }
+
+  /* ─────────── Eliminar sensor ─────────── */
+  const handleDelete = async () => {
+    if (!selected) return
+
+    try {
+      await api.delete(`/sensores/${selected.id}`)
+      setSuccess('Sensor eliminado correctamente.')
+      setSelected(null)
+      fetchData()
+    } catch (err) {
+      if (err.response?.status === 401 || err.response?.status === 403) {
+        setError('Sesión expirada o sin permisos para eliminar.')
+        logout()
+        setTimeout(() => navigate('/login'), 1500)
+      } else {
+        setError('Error al eliminar el sensor.')
+      }
+    }
+  }
+
+  const handleReturn = () => navigate(-1)
+
+  /* ─────────── Helper para mostrar username ─────────── */
+  const getUsername = (userId) => usuarios.find(u => u.id === userId)?.username || '—'
 
   return (
     <CContainer>
-      <CRow className="justify-content-center">
-        <CCol md={8}>
-          <CCard className="p-4">
-            <CCardBody>
-              <h1>Eliminar Sensor</h1>
+      <h2 className="mb-4">Sensores</h2>
 
-              {success && (
-                <CAlert color="success" dismissible>
-                  Sensor eliminado correctamente.
-                </CAlert>
-              )}
-              {error && (
-                <CAlert color="danger" dismissible onClose={() => setError(null)}>
-                  {error}
-                </CAlert>
-              )}
+      {error && (
+        <CAlert color="danger" dismissible onClose={() => setError(null)}>
+          {error}
+        </CAlert>
+      )}
+      {success && (
+        <CAlert color="success" dismissible onClose={() => setSuccess(null)}>
+          {success}
+        </CAlert>
+      )}
 
-              {sensor && (
-                <>
-                  <p><strong>Código:</strong> {sensor.codigo}</p>
-                  <p><strong>Ubicación:</strong> {sensor.ubicacion}</p>
-                  <p><strong>Usuario ID:</strong> {sensor.usuarioId}</p>
+      {/* Tabla de sensores */}
+      <CTable hover responsive>
+        <CTableHead>
+          <CTableRow>
+            <CTableHeaderCell>ID</CTableHeaderCell>
+            <CTableHeaderCell>Código</CTableHeaderCell>
+            <CTableHeaderCell>Ubicación</CTableHeaderCell>
+            <CTableHeaderCell>Usuario</CTableHeaderCell>
+            <CTableHeaderCell>Acciones</CTableHeaderCell>
+          </CTableRow>
+        </CTableHead>
+        <CTableBody>
+          {sensores.map((s) => (
+            <CTableRow key={s.id}>
+              <CTableDataCell>{s.id}</CTableDataCell>
+              <CTableDataCell>{s.codigo}</CTableDataCell>
+              <CTableDataCell>{s.ubicacion}</CTableDataCell>
+              <CTableDataCell>{getUsername(s.usuarioId)}</CTableDataCell>
+              <CTableDataCell>
+                <CButton color="danger" size="sm" onClick={() => confirmDelete(s)}>
+                  Eliminar
+                </CButton>
+              </CTableDataCell>
+            </CTableRow>
+          ))}
+        </CTableBody>
+      </CTable>
 
-                  <CRow>
-                    <CCol xs={6}>
-                      <CButton color="danger" onClick={handleDelete} className="px-4">
-                        Confirmar Eliminación
-                      </CButton>
-                    </CCol>
-                    <CCol xs={6} className="text-end">
-                      <CButton color="secondary" variant="outline" onClick={handleCancel} className="px-4">
-                        Cancelar
-                      </CButton>
-                    </CCol>
-                  </CRow>
-                </>
-              )}
-            </CCardBody>
-          </CCard>
-        </CCol>
-      </CRow>
+      {/* Sección de confirmación */}
+      {selected && (
+        <CRow className="justify-content-center mt-5">
+          <CCol md={6}>
+            <CCard>
+              <CCardBody>
+                <h5>Confirmar eliminación</h5>
+                <p>
+                  ¿Seguro que deseas eliminar el sensor <strong>{selected.codigo}</strong> (ID {selected.id})?
+                </p>
+                <CRow className="mb-2">
+                  <CCol xs={6}>
+                    <CButton color="danger" onClick={handleDelete} className="px-4">
+                      Confirmar
+                    </CButton>
+                  </CCol>
+                  <CCol xs={6} className="text-end">
+                    <CButton
+                      color="secondary"
+                      variant="outline"
+                      onClick={() => setSelected(null)}
+                      className="px-4"
+                    >
+                      Cancelar
+                    </CButton>
+                  </CCol>
+                </CRow>
+                <CButton color="secondary" onClick={handleReturn}>Volver</CButton>
+              </CCardBody>
+            </CCard>
+          </CCol>
+        </CRow>
+      )}
+
+      {/* Botón volver cuando no hay seleccionado */}
+      {!selected && (
+        <CRow className="mt-4">
+          <CCol className="text-end">
+            <CButton color="secondary" onClick={handleReturn}>Volver</CButton>
+          </CCol>
+        </CRow>
+      )}
     </CContainer>
   )
 }

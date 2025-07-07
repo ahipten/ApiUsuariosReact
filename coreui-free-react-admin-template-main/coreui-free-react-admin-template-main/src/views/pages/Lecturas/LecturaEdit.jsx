@@ -36,27 +36,37 @@ const LecturaEdit = () => {
     necesitaRiego: false,
   })
 
+  const [sensores, setSensores] = useState([])
+  const [cultivos, setCultivos] = useState([])
+
   const [error, setError] = useState(null)
   const [success, setSuccess] = useState(false)
 
+  /* ─────────── Cargar lectura y listas ─────────── */
   useEffect(() => {
-    const fetchLectura = async () => {
+    const fetchData = async () => {
       try {
-        const response = await api.get(`/lecturas/${id}`)
-        const lectura = response.data
+        const [lecturaRes, sensoresRes, cultivosRes] = await Promise.all([
+          api.get(`/lecturas/${id}`),
+          api.get('/sensores'),
+          api.get('/cultivos'),
+        ])
 
-        // Formatear fecha a input datetime-local
+        const lectura = lecturaRes.data
         const fechaISO = new Date(lectura.fecha).toISOString().slice(0, 16)
 
         setForm({ ...lectura, fecha: fechaISO })
+        setSensores(sensoresRes.data)
+        setCultivos(cultivosRes.data)
       } catch (err) {
-        setError('Error al cargar la lectura.')
+        setError('Error al cargar la lectura o listas de datos.')
       }
     }
 
-    fetchLectura()
+    fetchData()
   }, [id])
 
+  /* ─────────── Manejadores ─────────── */
   const handleChange = (e) => {
     const { name, value, type } = e.target
     const newValue = type === 'select-one' && name === 'necesitaRiego' ? value === 'true' : value
@@ -69,10 +79,13 @@ const LecturaEdit = () => {
     setSuccess(false)
 
     try {
-      await api.put(`/lecturas/${id}`, form)
+      await api.put(`/lecturas/${id}`, {
+        ...form,
+        necesitaRiego: form.necesitaRiego === true || form.necesitaRiego === 'true',
+      })
       setSuccess(true)
     } catch (err) {
-      if (err.response?.status === 401) {
+      if (err.response?.status === 401 || err.response?.status === 403) {
         setError('Sesión expirada o sin permisos. Inicia sesión nuevamente.')
         logout()
         setTimeout(() => navigate('/login'), 1500)
@@ -84,6 +97,7 @@ const LecturaEdit = () => {
 
   const handleCancel = () => navigate(-1)
 
+  /* ─────────── Render ─────────── */
   return (
     <CContainer>
       <CRow className="justify-content-center">
@@ -93,7 +107,7 @@ const LecturaEdit = () => {
               <CCardBody>
                 <CForm onSubmit={handleSubmit}>
                   <h1>Editar Lectura</h1>
-                  <p className="text-medium-emphasis">Modificar los datos de la lectura</p>
+                  <p className="text-medium-emphasis">Modifica los datos registrados</p>
 
                   {success && (
                     <CAlert color="success" dismissible onClose={() => setSuccess(false)}>
@@ -106,22 +120,57 @@ const LecturaEdit = () => {
                     </CAlert>
                   )}
 
-                  {/* Campos */}
+                  {/* Sensor */}
+                  <CInputGroup className="mb-3">
+                    <CInputGroupText>Sensor</CInputGroupText>
+                    <CFormSelect name="sensorId" value={form.sensorId} onChange={handleChange} required>
+                      <option value="">Seleccione un sensor</option>
+                      {sensores.map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.codigo} ({s.ubicacion})
+                        </option>
+                      ))}
+                    </CFormSelect>
+                  </CInputGroup>
+
+                  {/* Cultivo */}
+                  <CInputGroup className="mb-3">
+                    <CInputGroupText>Cultivo</CInputGroupText>
+                    <CFormSelect name="cultivoId" value={form.cultivoId} onChange={handleChange} required>
+                      <option value="">Seleccione un cultivo</option>
+                      {cultivos.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.nombre}
+                        </option>
+                      ))}
+                    </CFormSelect>
+                  </CInputGroup>
+
+                  {/* Fecha */}
+                  <CInputGroup className="mb-3">
+                    <CInputGroupText>Fecha</CInputGroupText>
+                    <CFormInput
+                      type="datetime-local"
+                      name="fecha"
+                      value={form.fecha}
+                      onChange={handleChange}
+                      required
+                    />
+                  </CInputGroup>
+
+                  {/* Otros campos numéricos */}
                   {[
-                    ['sensorId', 'ID Sensor'],
-                    ['cultivoId', 'ID Cultivo'],
-                    ['fecha', 'Fecha', 'datetime-local'],
                     ['humedadSuelo', 'Humedad Suelo'],
                     ['temperatura', 'Temperatura'],
                     ['precipitacion', 'Precipitación'],
                     ['viento', 'Viento'],
                     ['radiacionSolar', 'Radiación Solar'],
                     ['etapaCultivo', 'Etapa Cultivo'],
-                  ].map(([name, label, type = 'text']) => (
-                    <CInputGroup className="mb-2" key={name}>
+                  ].map(([name, label]) => (
+                    <CInputGroup className="mb-3" key={name}>
                       <CInputGroupText>{label}</CInputGroupText>
                       <CFormInput
-                        type={type}
+                        type="text"
                         name={name}
                         value={form[name]}
                         onChange={handleChange}
@@ -130,12 +179,12 @@ const LecturaEdit = () => {
                     </CInputGroup>
                   ))}
 
-                  {/* ¿Necesita Riego? */}
+                  {/* Necesita Riego */}
                   <CInputGroup className="mb-4">
                     <CInputGroupText>¿Necesita Riego?</CInputGroupText>
                     <CFormSelect
                       name="necesitaRiego"
-                      value={form.necesitaRiego?.toString()}
+                      value={form.necesitaRiego.toString()}
                       onChange={handleChange}
                     >
                       <option value="false">No</option>
@@ -143,6 +192,7 @@ const LecturaEdit = () => {
                     </CFormSelect>
                   </CInputGroup>
 
+                  {/* Botones */}
                   <CRow>
                     <CCol xs={6}>
                       <CButton type="submit" color="primary" className="px-4">

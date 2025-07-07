@@ -3,19 +3,18 @@ import { useParams, useNavigate } from 'react-router-dom'
 import api from '../../../api/axios'
 import {
   CContainer,
-  CCard,
-  CCardBody,
-  CCardTitle,
-  CCardText,
-  CButton,
   CRow,
   CCol,
+  CCard,
+  CCardBody,
   CAlert,
+  CButton,
 } from '@coreui/react'
 
 const LecturaDelete = () => {
   const { id } = useParams()
   const navigate = useNavigate()
+
   const [lectura, setLectura] = useState(null)
   const [error, setError] = useState(null)
   const [success, setSuccess] = useState(false)
@@ -23,8 +22,8 @@ const LecturaDelete = () => {
   useEffect(() => {
     const fetchLectura = async () => {
       try {
-        const res = await api.get(`/lecturas/${id}`)
-        setLectura(res.data)
+        const { data } = await api.get(`/lecturas/${id}`)
+        setLectura(data)
       } catch (err) {
         setError('No se pudo cargar la lectura.')
       }
@@ -45,49 +44,48 @@ const LecturaDelete = () => {
 
   const handleCancel = () => navigate(-1)
 
-  if (!lectura && !error) return <p>Cargando datos de la lectura...</p>
-
   return (
     <CContainer>
       <CRow className="justify-content-center">
         <CCol md={8}>
-          <CCard>
+          <CCard className="p-4">
             <CCardBody>
-              <CCardTitle>Eliminar Lectura</CCardTitle>
+              <h1>Eliminar Lectura</h1>
+
+              {success && (
+                <CAlert color="success" dismissible>
+                  Lectura eliminada correctamente.
+                </CAlert>
+              )}
 
               {error && (
                 <CAlert color="danger" dismissible onClose={() => setError(null)}>
                   {error}
                 </CAlert>
               )}
-              {success && (
-                <CAlert color="success" dismissible>
-                  Lectura eliminada exitosamente.
-                </CAlert>
-              )}
 
               {lectura && (
                 <>
-                  <CCardText>
-                    ¿Estás seguro que deseas eliminar esta lectura registrada el{' '}
+                  <p>
+                    ¿Estás seguro que deseas eliminar la lectura del{' '}
                     <strong>{new Date(lectura.fecha).toLocaleString()}</strong>?
-                  </CCardText>
+                  </p>
 
                   <ul>
-                    <li>Sensor ID: {lectura.sensorId}</li>
-                    <li>Cultivo ID: {lectura.cultivoId}</li>
-                    <li>Humedad Suelo: {lectura.humedadSuelo}</li>
-                    <li>Temperatura: {lectura.temperatura}</li>
+                    <li><strong>Sensor ID:</strong> {lectura.sensorId}</li>
+                    <li><strong>Cultivo ID:</strong> {lectura.cultivoId}</li>
+                    <li><strong>Humedad Suelo:</strong> {lectura.humedadSuelo}</li>
+                    <li><strong>Temperatura:</strong> {lectura.temperatura}</li>
                   </ul>
 
                   <CRow className="mt-4">
                     <CCol xs={6}>
-                      <CButton color="danger" onClick={handleDelete}>
-                        Eliminar
+                      <CButton color="danger" onClick={handleDelete} className="px-4">
+                        Confirmar Eliminación
                       </CButton>
                     </CCol>
                     <CCol xs={6} className="text-end">
-                      <CButton color="secondary" variant="outline" onClick={handleCancel}>
+                      <CButton color="secondary" variant="outline" onClick={handleCancel} className="px-4">
                         Cancelar
                       </CButton>
                     </CCol>

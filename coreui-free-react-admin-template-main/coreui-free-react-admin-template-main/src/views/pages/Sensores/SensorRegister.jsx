@@ -1,5 +1,4 @@
-// src/views/sensores/SensorRegister.js
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import {
   CButton,
   CCard,
@@ -12,6 +11,7 @@ import {
   CInputGroupText,
   CRow,
   CAlert,
+  CFormSelect,
 } from '@coreui/react'
 import CIcon from '@coreui/icons-react'
 import * as iconSet from '@coreui/icons'
@@ -20,10 +20,16 @@ import api from '../../../api/axios'
 
 const SensorRegister = () => {
   const [form, setForm] = useState({ codigo: '', ubicacion: '', usuarioId: '' })
+  const [usuarios, setUsuarios] = useState([])
   const [error, setError] = useState(null)
   const [success, setSuccess] = useState(false)
-
   const navigate = useNavigate()
+
+  useEffect(() => {
+    api.get('/users')
+      .then(res => setUsuarios(res.data))
+      .catch(() => setError('Error al cargar usuarios.'))
+  }, [])
 
   const handleChange = (e) => {
     setForm({ ...form, [e.target.name]: e.target.value })
@@ -52,6 +58,15 @@ const SensorRegister = () => {
     <CContainer>
       <CRow className="justify-content-center">
         <CCol md={8}>
+          <CButton
+            color="secondary"
+            variant="outline"
+            className="mb-3"
+            onClick={() => navigate(-1)}
+          >
+            ← Volver
+          </CButton>
+
           <CCard className="p-4">
             <CCardBody>
               <CForm onSubmit={handleSubmit}>
@@ -92,13 +107,15 @@ const SensorRegister = () => {
 
                 <CInputGroup className="mb-4">
                   <CInputGroupText><CIcon icon={iconSet.cilUser} /></CInputGroupText>
-                  <CFormInput
-                    type="number"
-                    placeholder="ID del Usuario"
+                  <CFormSelect
                     name="usuarioId"
                     value={form.usuarioId}
                     onChange={handleChange}
                     required
+                    options={[
+                      { label: 'Seleccione un usuario', value: '' },
+                      ...usuarios.map(u => ({ label: u.username, value: u.id }))
+                    ]}
                   />
                 </CInputGroup>
 
