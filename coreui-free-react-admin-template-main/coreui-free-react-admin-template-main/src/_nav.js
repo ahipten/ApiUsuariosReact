@@ -501,6 +501,11 @@ const _nav = [
         name: 'ELiminar',
         to: '/lecturadelete',
       },
+            {
+        component: CNavItem,
+        name: 'Cargar Lecturas',
+        to: '/lecturaimport',
+      },
     ],
   },
      {

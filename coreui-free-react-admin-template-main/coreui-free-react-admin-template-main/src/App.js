@@ -27,6 +27,7 @@ const CultivoDelete = React.lazy(() => import('./views/pages/Cultivo/CultivoDele
 const LecturaCreate = React.lazy(() => import('./views/pages/Lecturas/LecturaRegister'))
 const LecturaEdit = React.lazy(() => import('./views/pages/Lecturas/LecturaEdit'))
 const LecturaDelete = React.lazy(() => import('./views/pages/Lecturas/LecturaDelete'))
+const LecturaImport = React.lazy(() => import('./views/pages/Lecturas/LecturaImport'))
 //Sensores
 const SensorCreate = React.lazy(() => import('./views/pages/Sensores/SensorRegister'))
 const SensorEdit = React.lazy(() => import('./views/pages/Sensores/SensorEdit'))
@@ -62,18 +63,24 @@ const AppContent = () => {
         }
       >
         <Routes>
-          <Route path="/login" name="Login Page" element={<Login />} />
+          {/* Rutas de autenticación */}
+          <Route path="/login" name="Login Page" element={<Login />} />          
+          {/* Rutas de usuarios */}          
           <Route path="/register" name="Register Page" element={<Register />} />
           <Route path="/usersedit" name="Edit Users" element={<UsersEdit />} />
           <Route path="/usersdelete" name="Delete User" element={<UsersDelete />} />
           <Route path="/404" name="Page 404" element={<Page404 />} />
           <Route path="/500" name="Page 500" element={<Page500 />} />
+          {/* Rutas de cultivos */}
           <Route path="/cultivocreate" name="Create Cultivo" element={<CultivoCreate />} />
           <Route path="/cultivoedit" name="Edit Cultivo" element={<CultivoEdit />} />
           <Route path="/cultivodelete" name="Delete Cultivo" element={<CultivoDelete />} />
+          {/* Rutas de lecturas */}
           <Route path="/lecturaregister" name="Create Lectura" element={<LecturaCreate />} />
           <Route path="/lecturaedit" name="Edit Lectura" element={<LecturaEdit />} />
           <Route path="/lecturadelete" name="Delete Lectura" element={<LecturaDelete />} />
+          <Route path="/lecturaimport" name="Import Lecturas" element={<LecturaImport />} />
+          {/* Rutas de sensores */}
           <Route path="/sensorregister" name="Create Sensor" element={<SensorCreate />} />
           <Route path="/sensoredit" name="Edit Sensor" element={<SensorEdit />} />
           <Route path="/sensordelete" name="Delete Sensor" element={<SensorDelete />} />
