@@ -21,24 +21,18 @@ import { CChartLine } from '@coreui/react-chartjs'
 
 const DashboardPredicciones = () => {
   const [tablaCultivos, setTablaCultivos] = useState([])
-  const [costoMensual, setCostoMensual] = useState(Array(12).fill(0))
-  const [filtroCultivo, setFiltroCultivo] = useState('Todos')
+  const [costoMensual, setCostoMensual] = useState({})
+  const [filtroCultivo, setFiltroCultivo] = useState(['Todos'])
   const [filtroMes, setFiltroMes] = useState('Todos')
 
   const meses = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
 
-  // ✅ 1. Cargar datos solo 1 vez
+  // ✅ 1. Cargar datos una vez
   useEffect(() => {
     const cargarDatos = async () => {
       try {
-        const ids = [1, 2, 3, 4]
-        const datos = await Promise.all(
-          ids.map(async (id) => {
-            const res = await fetch(`http://localhost:5001/api/predicciones/regar-avanzado/${id}`)
-            if (!res.ok) throw new Error(`Error al cargar ID ${id}`)
-            return await res.json()
-          })
-        )
+        const res = await fetch(`http://localhost:5001/api/predicciones/regar-todos`)
+        const datos = await res.json()
         setTablaCultivos(datos)
       } catch (error) {
         console.error('❌ Error al cargar datos:', error)
@@ -48,24 +42,35 @@ const DashboardPredicciones = () => {
     cargarDatos()
   }, [])
 
-  // ✅ 2. Actualizar gráfico según filtros aplicados
+  // ✅ 2. Acumular costo mensual por cultivo
   useEffect(() => {
-    const acumulador = Array(12).fill(0)
-    tablaCultivos.forEach((d) => {
-      const mes = new Date(d.fecha).getMonth()
-      const coincideCultivo = filtroCultivo === 'Todos' || d.cultivo === filtroCultivo
-      const coincideMes = filtroMes === 'Todos' || mes === Number(filtroMes)
-      if (coincideCultivo && coincideMes) {
-        acumulador[mes] += d.costo_estimado
-      }
+    const acumuladoPorCultivo = {}
+
+    const cultivosSeleccionados = filtroCultivo.includes('Todos')
+      ? [...new Set(tablaCultivos.map((d) => d.cultivo))]
+      : filtroCultivo
+
+    cultivosSeleccionados.forEach((cultivo) => {
+      const acumulador = Array(12).fill(0)
+      tablaCultivos.forEach((d) => {
+        const mes = new Date(d.fecha).getMonth()
+        const coincideCultivo = d.cultivo === cultivo
+        const coincideMes = filtroMes === 'Todos' || mes === Number(filtroMes)
+        if (coincideCultivo && coincideMes) {
+          acumulador[mes] += d.costo_estimado
+        }
+      })
+      acumuladoPorCultivo[cultivo] = acumulador
     })
-    setCostoMensual(acumulador)
+
+    setCostoMensual(acumuladoPorCultivo)
   }, [tablaCultivos, filtroCultivo, filtroMes])
 
   // ✅ 3. Filtrar tabla
   const tablaFiltrada = tablaCultivos.filter((item) => {
     const mes = new Date(item.fecha).getMonth()
-    const coincideCultivo = filtroCultivo === 'Todos' || item.cultivo === filtroCultivo
+    const coincideCultivo =
+      filtroCultivo.includes('Todos') || filtroCultivo.includes(item.cultivo)
     const coincideMes = filtroMes === 'Todos' || mes === Number(filtroMes)
     return coincideCultivo && coincideMes
   })
@@ -78,10 +83,17 @@ const DashboardPredicciones = () => {
         <CCardBody>
           <h4 className="mb-3">Costo Estimado de Riego por Mes (S/.)</h4>
 
-          <div className="d-flex gap-3 mb-4">
+          <div className="d-flex gap-4 flex-wrap mb-4">
             <label>
               Cultivo:{' '}
-              <select value={filtroCultivo} onChange={(e) => setFiltroCultivo(e.target.value)}>
+              <select
+                multiple
+                value={filtroCultivo}
+                onChange={(e) => {
+                  const seleccionados = Array.from(e.target.selectedOptions, (opt) => opt.value)
+                  setFiltroCultivo(seleccionados.length ? seleccionados : ['Todos'])
+                }}
+              >
                 <option value="Todos">Todos los cultivos</option>
                 {cultivosUnicos.map((c, i) => (
                   <option key={i} value={c}>
@@ -104,19 +116,23 @@ const DashboardPredicciones = () => {
             </label>
           </div>
 
+          {filtroCultivo.length > 5 && (
+            <p className="text-warning">
+              ⚠️ Mostrar más de 5 cultivos puede dificultar la lectura del gráfico.
+            </p>
+          )}
+
           <CChartLine
             style={{ height: '300px' }}
             data={{
               labels: meses,
-              datasets: [
-                {
-                  label: 'Costo estimado S/.',
-                  backgroundColor: 'rgba(0,123,255,0.1)',
-                  borderColor: '#007bff',
-                  data: costoMensual.map((v) => v.toFixed(2)),
-                  fill: true,
-                },
-              ],
+              datasets: Object.entries(costoMensual).map(([cultivo, valores], i) => ({
+                label: cultivo,
+                backgroundColor: `rgba(${100 + i * 30}, 123, 255, 0.1)`,
+                borderColor: `hsl(${i * 60}, 70%, 50%)`,
+                data: valores.map((v) => v.toFixed(2)),
+                fill: false,
+              })),
             }}
           />
         </CCardBody>
