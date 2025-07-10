@@ -1,4 +1,3 @@
-// DashboardPredicciones.jsx
 import React, { useEffect, useState } from 'react'
 import {
   CAvatar,
@@ -23,44 +22,98 @@ import { CChartLine } from '@coreui/react-chartjs'
 const DashboardPredicciones = () => {
   const [tablaCultivos, setTablaCultivos] = useState([])
   const [costoMensual, setCostoMensual] = useState(Array(12).fill(0))
+  const [filtroCultivo, setFiltroCultivo] = useState('Todos')
+  const [filtroMes, setFiltroMes] = useState('Todos')
 
+  const meses = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
+
+  // ✅ 1. Cargar datos solo 1 vez
   useEffect(() => {
     const cargarDatos = async () => {
-      const ids = [1, 2, 3, 4] // IDs reales
-      const datos = await Promise.all(
-        ids.map(async (id) => {
-          const res = await fetch(`http://localhost:5001/api/predicciones/regar-avanzado/${id}`)
-          return await res.json()
-        })
-      )
-      setTablaCultivos(datos)
-
-      const acumulador = Array(12).fill(0)
-      datos.forEach((d) => {
-        const mes = new Date(d.fecha).getMonth()
-        acumulador[mes] += d.costo_estimado
-      })
-      setCostoMensual(acumulador)
+      try {
+        const ids = [1, 2, 3, 4]
+        const datos = await Promise.all(
+          ids.map(async (id) => {
+            const res = await fetch(`http://localhost:5001/api/predicciones/regar-avanzado/${id}`)
+            if (!res.ok) throw new Error(`Error al cargar ID ${id}`)
+            return await res.json()
+          })
+        )
+        setTablaCultivos(datos)
+      } catch (error) {
+        console.error('❌ Error al cargar datos:', error)
+      }
     }
 
     cargarDatos()
   }, [])
+
+  // ✅ 2. Actualizar gráfico según filtros aplicados
+  useEffect(() => {
+    const acumulador = Array(12).fill(0)
+    tablaCultivos.forEach((d) => {
+      const mes = new Date(d.fecha).getMonth()
+      const coincideCultivo = filtroCultivo === 'Todos' || d.cultivo === filtroCultivo
+      const coincideMes = filtroMes === 'Todos' || mes === Number(filtroMes)
+      if (coincideCultivo && coincideMes) {
+        acumulador[mes] += d.costo_estimado
+      }
+    })
+    setCostoMensual(acumulador)
+  }, [tablaCultivos, filtroCultivo, filtroMes])
+
+  // ✅ 3. Filtrar tabla
+  const tablaFiltrada = tablaCultivos.filter((item) => {
+    const mes = new Date(item.fecha).getMonth()
+    const coincideCultivo = filtroCultivo === 'Todos' || item.cultivo === filtroCultivo
+    const coincideMes = filtroMes === 'Todos' || mes === Number(filtroMes)
+    return coincideCultivo && coincideMes
+  })
+
+  const cultivosUnicos = [...new Set(tablaCultivos.map((t) => t.cultivo))]
 
   return (
     <>
       <CCard className="mb-4">
         <CCardBody>
           <h4 className="mb-3">Costo Estimado de Riego por Mes (S/.)</h4>
+
+          <div className="d-flex gap-3 mb-4">
+            <label>
+              Cultivo:{' '}
+              <select value={filtroCultivo} onChange={(e) => setFiltroCultivo(e.target.value)}>
+                <option value="Todos">Todos los cultivos</option>
+                {cultivosUnicos.map((c, i) => (
+                  <option key={i} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label>
+              Mes:{' '}
+              <select value={filtroMes} onChange={(e) => setFiltroMes(e.target.value)}>
+                <option value="Todos">Todos los meses</option>
+                {meses.map((mes, i) => (
+                  <option key={i} value={i}>
+                    {mes}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+
           <CChartLine
             style={{ height: '300px' }}
             data={{
-              labels: ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'],
+              labels: meses,
               datasets: [
                 {
                   label: 'Costo estimado S/.',
                   backgroundColor: 'rgba(0,123,255,0.1)',
                   borderColor: '#007bff',
-                  data: costoMensual,
+                  data: costoMensual.map((v) => v.toFixed(2)),
                   fill: true,
                 },
               ],
@@ -88,7 +141,7 @@ const DashboardPredicciones = () => {
                   </CTableRow>
                 </CTableHead>
                 <CTableBody>
-                  {tablaCultivos.map((item, index) => (
+                  {tablaFiltrada.map((item, index) => (
                     <CTableRow key={index}>
                       <CTableDataCell className="text-center">
                         <CAvatar size="md" src={avatar1} status={item.necesitaRiego ? 'danger' : 'success'} />
@@ -104,7 +157,7 @@ const DashboardPredicciones = () => {
                       </CTableDataCell>
                       <CTableDataCell>
                         <div className="d-flex justify-content-between text-nowrap">
-                          <div className="fw-semibold">{item.costo_estimado} S/.</div>
+                          <div className="fw-semibold">{item.costo_estimado.toFixed(2)} S/.</div>
                           <div className="ms-3">
                             <small className="text-body-secondary">{item.fecha}</small>
                           </div>
