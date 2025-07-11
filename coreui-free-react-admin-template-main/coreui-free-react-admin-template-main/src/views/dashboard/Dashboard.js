@@ -18,22 +18,34 @@ import { cilPeople, cilPlant } from '@coreui/icons'
 import { cifPe } from '@coreui/icons'
 import avatar1 from 'src/assets/images/avatars/1.jpg'
 import { CChartLine } from '@coreui/react-chartjs'
+import MetricasModelo from 'src/components/MetricasModelo'
 
 const DashboardPredicciones = () => {
   const [tablaCultivos, setTablaCultivos] = useState([])
-  const [costoMensual, setCostoMensual] = useState({})
-  const [filtroCultivo, setFiltroCultivo] = useState(['Todos'])
+  const [costoMensual, setCostoMensual] = useState(Array(12).fill(0))
+  const [filtroCultivo, setFiltroCultivo] = useState('Todos')
   const [filtroMes, setFiltroMes] = useState('Todos')
+  const [topExplicaciones, setTopExplicaciones] = useState([])
 
   const meses = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
 
-  // ✅ 1. Cargar datos una vez
   useEffect(() => {
     const cargarDatos = async () => {
       try {
-        const res = await fetch(`http://localhost:5001/api/predicciones/regar-todos`)
+        const res = await fetch('http://localhost:5001/api/predicciones/regar-todos')
+        if (!res.ok) throw new Error('Error al cargar datos')
         const datos = await res.json()
         setTablaCultivos(datos)
+
+        const explicaciones = {}
+        datos.forEach((item) => {
+          const exp = item.explicacion?.toLowerCase() || 'sin datos'
+          explicaciones[exp] = (explicaciones[exp] || 0) + 1
+        })
+        const top3 = Object.entries(explicaciones)
+          .sort((a, b) => b[1] - a[1])
+          .slice(0, 3)
+        setTopExplicaciones(top3)
       } catch (error) {
         console.error('❌ Error al cargar datos:', error)
       }
@@ -42,35 +54,22 @@ const DashboardPredicciones = () => {
     cargarDatos()
   }, [])
 
-  // ✅ 2. Acumular costo mensual por cultivo
   useEffect(() => {
-    const acumuladoPorCultivo = {}
-
-    const cultivosSeleccionados = filtroCultivo.includes('Todos')
-      ? [...new Set(tablaCultivos.map((d) => d.cultivo))]
-      : filtroCultivo
-
-    cultivosSeleccionados.forEach((cultivo) => {
-      const acumulador = Array(12).fill(0)
-      tablaCultivos.forEach((d) => {
-        const mes = new Date(d.fecha).getMonth()
-        const coincideCultivo = d.cultivo === cultivo
-        const coincideMes = filtroMes === 'Todos' || mes === Number(filtroMes)
-        if (coincideCultivo && coincideMes) {
-          acumulador[mes] += d.costo_estimado
-        }
-      })
-      acumuladoPorCultivo[cultivo] = acumulador
+    const acumulador = Array(12).fill(0)
+    tablaCultivos.forEach((d) => {
+      const mes = new Date(d.fecha).getMonth()
+      const coincideCultivo = filtroCultivo === 'Todos' || d.cultivo === filtroCultivo
+      const coincideMes = filtroMes === 'Todos' || mes === Number(filtroMes)
+      if (coincideCultivo && coincideMes) {
+        acumulador[mes] += d.costo_estimado
+      }
     })
-
-    setCostoMensual(acumuladoPorCultivo)
+    setCostoMensual(acumulador)
   }, [tablaCultivos, filtroCultivo, filtroMes])
 
-  // ✅ 3. Filtrar tabla
   const tablaFiltrada = tablaCultivos.filter((item) => {
     const mes = new Date(item.fecha).getMonth()
-    const coincideCultivo =
-      filtroCultivo.includes('Todos') || filtroCultivo.includes(item.cultivo)
+    const coincideCultivo = filtroCultivo === 'Todos' || item.cultivo === filtroCultivo
     const coincideMes = filtroMes === 'Todos' || mes === Number(filtroMes)
     return coincideCultivo && coincideMes
   })
@@ -83,22 +82,13 @@ const DashboardPredicciones = () => {
         <CCardBody>
           <h4 className="mb-3">Costo Estimado de Riego por Mes (S/.)</h4>
 
-          <div className="d-flex gap-4 flex-wrap mb-4">
+          <div className="d-flex gap-3 mb-4">
             <label>
               Cultivo:{' '}
-              <select
-                multiple
-                value={filtroCultivo}
-                onChange={(e) => {
-                  const seleccionados = Array.from(e.target.selectedOptions, (opt) => opt.value)
-                  setFiltroCultivo(seleccionados.length ? seleccionados : ['Todos'])
-                }}
-              >
+              <select value={filtroCultivo} onChange={(e) => setFiltroCultivo(e.target.value)}>
                 <option value="Todos">Todos los cultivos</option>
                 {cultivosUnicos.map((c, i) => (
-                  <option key={i} value={c}>
-                    {c}
-                  </option>
+                  <option key={i} value={c}>{c}</option>
                 ))}
               </select>
             </label>
@@ -108,38 +98,39 @@ const DashboardPredicciones = () => {
               <select value={filtroMes} onChange={(e) => setFiltroMes(e.target.value)}>
                 <option value="Todos">Todos los meses</option>
                 {meses.map((mes, i) => (
-                  <option key={i} value={i}>
-                    {mes}
-                  </option>
+                  <option key={i} value={i}>{mes}</option>
                 ))}
               </select>
             </label>
           </div>
 
-          {filtroCultivo.length > 5 && (
-            <p className="text-warning">
-              ⚠️ Mostrar más de 5 cultivos puede dificultar la lectura del gráfico.
-            </p>
-          )}
-
           <CChartLine
             style={{ height: '300px' }}
             data={{
               labels: meses,
-              datasets: Object.entries(costoMensual).map(([cultivo, valores], i) => ({
-                label: cultivo,
-                backgroundColor: `rgba(${100 + i * 30}, 123, 255, 0.1)`,
-                borderColor: `hsl(${i * 60}, 70%, 50%)`,
-                data: valores.map((v) => v.toFixed(2)),
-                fill: false,
-              })),
+              datasets: [
+                {
+                  label: 'Costo estimado S/.',
+                  backgroundColor: 'rgba(0,123,255,0.1)',
+                  borderColor: '#007bff',
+                  data: costoMensual.map((v) => v.toFixed(2)),
+                  fill: true,
+                },
+              ],
             }}
           />
         </CCardBody>
       </CCard>
 
+      {/* 📈 Métricas del modelo */}
+      <CCard className="mb-4">
+        <CCardBody>
+          <MetricasModelo />
+        </CCardBody>
+      </CCard>
+
       <CRow>
-        <CCol xs>
+        <CCol md={9}>
           <CCard className="mb-4">
             <CCardBody>
               <h4 className="mb-3">Predicciones de Riego</h4>
@@ -188,13 +179,28 @@ const DashboardPredicciones = () => {
                         <CIcon size="xl" icon={cilPlant} />
                       </CTableDataCell>
                       <CTableDataCell>
-                        <div className="small text-body-secondary">Necesita Riego</div>
-                        <div className="fw-semibold">{item.necesitaRiego ? 'Sí' : 'No'}</div>
+                        <div className="small text-body-secondary">Motivo</div>
+                        <div className="fw-semibold">{item.explicacion}</div>
                       </CTableDataCell>
                     </CTableRow>
                   ))}
                 </CTableBody>
               </CTable>
+            </CCardBody>
+          </CCard>
+        </CCol>
+
+        <CCol md={3}>
+          <CCard className="mb-4">
+            <CCardBody>
+              <h5 className="mb-3">⚠️ Principales causas de riego</h5>
+              <ul>
+                {topExplicaciones.map(([motivo, cantidad], index) => (
+                  <li key={index}>
+                    {motivo.charAt(0).toUpperCase() + motivo.slice(1)}: <strong>{cantidad}</strong> ocurrencias
+                  </li>
+                ))}
+              </ul>
             </CCardBody>
           </CCard>
         </CCol>
