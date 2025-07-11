@@ -5,7 +5,7 @@ const MetricasModelo = () => {
   const [metricas, setMetricas] = useState(null)
 
   useEffect(() => {
-    fetch('http://localhost:5001/metricas_modelo.json')
+    fetch('http://localhost:5001/api/metricas/evaluar')
       .then((res) => res.json())
       .then((data) => setMetricas(data))
       .catch((err) => console.error('❌ Error al cargar métricas:', err))
