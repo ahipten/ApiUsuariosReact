@@ -25,7 +25,7 @@ const DashboardPredicciones = () => {
   const [costoMensual, setCostoMensual] = useState(Array(12).fill(0))
   const [filtroCultivo, setFiltroCultivo] = useState('Todos')
   const [filtroMes, setFiltroMes] = useState('Todos')
-  const [filtroAnio, setFiltroAnio] = useState('2024')
+  const [filtroAnio, setFiltroAnio] = useState(new Date().getFullYear().toString())
   const [topExplicaciones, setTopExplicaciones] = useState([])
 
   const meses = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
@@ -85,6 +85,12 @@ const DashboardPredicciones = () => {
   const cultivosUnicos = [...new Set(tablaCultivos.map((t) => t.cultivo))]
   const aniosUnicos = [...new Set(tablaCultivos.map((t) => new Date(t.fecha).getFullYear()))].sort()
 
+  const obtenerColorUrgencia = (p) => {
+    if (p > 80) return 'danger'
+    if (p > 50) return 'warning'
+    return 'success'
+  }
+
   return (
     <>
       <CCard className="mb-4">
@@ -141,7 +147,6 @@ const DashboardPredicciones = () => {
         </CCardBody>
       </CCard>
 
-      {/* 📈 Métricas del modelo */}
       <CCard className="mb-4">
         <CCardBody>
           <MetricasModelo />
@@ -182,20 +187,34 @@ const DashboardPredicciones = () => {
                         <CIcon size="xl" icon={cifPe} title="Perú" />
                       </CTableDataCell>
                       <CTableDataCell>
-                        <div className="d-flex justify-content-between text-nowrap">
-                          <div className="fw-semibold">{item.costo_estimado.toFixed(2)} S/.</div>
-                          <div className="ms-3">
-                            <small className="text-body-secondary">{item.fecha}</small>
-                          </div>
+                        <div className="d-flex flex-column text-nowrap">
+                          <div className="fw-semibold">💰 {item.costo_estimado.toFixed(2)} S/.</div>
+                          <small className="text-body-secondary">💧 {(item.costo_estimado / 5.21).toFixed(1)} m³ de agua</small>
+                          <small className="text-body-secondary">
+                            ⚠️ Urgencia:{' '}
+                            <strong>
+                              {item.probabilidad > 80
+                                ? '🔴 Alta'
+                                : item.probabilidad > 50
+                                ? '🟠 Media'
+                                : '🟢 Baja'}
+                            </strong>
+                          </small>
+                          <small className="text-body-secondary">📅 {item.fecha}</small>
                         </div>
                         <CProgress
+                          className="mt-2"
                           thin
                           color={item.necesitaRiego ? 'danger' : 'success'}
-                          value={item.probabilidad * 100}
+                          value={item.probabilidad}
                         />
                       </CTableDataCell>
                       <CTableDataCell className="text-center">
-                        <CIcon size="xl" icon={cilPlant} />
+                        <CIcon
+                          size="xl"
+                          icon={cilPlant}
+                          className={`text-${obtenerColorUrgencia(item.probabilidad)}`}
+                        />
                       </CTableDataCell>
                       <CTableDataCell>
                         <div className="small text-body-secondary">Motivo</div>
