@@ -25,6 +25,7 @@ const DashboardPredicciones = () => {
   const [costoMensual, setCostoMensual] = useState(Array(12).fill(0))
   const [filtroCultivo, setFiltroCultivo] = useState('Todos')
   const [filtroMes, setFiltroMes] = useState('Todos')
+  const [filtroAnio, setFiltroAnio] = useState('2024')
   const [topExplicaciones, setTopExplicaciones] = useState([])
 
   const meses = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
@@ -57,24 +58,32 @@ const DashboardPredicciones = () => {
   useEffect(() => {
     const acumulador = Array(12).fill(0)
     tablaCultivos.forEach((d) => {
-      const mes = new Date(d.fecha).getMonth()
+      const fecha = new Date(d.fecha)
+      const mes = fecha.getMonth()
+      const anio = fecha.getFullYear()
       const coincideCultivo = filtroCultivo === 'Todos' || d.cultivo === filtroCultivo
       const coincideMes = filtroMes === 'Todos' || mes === Number(filtroMes)
-      if (coincideCultivo && coincideMes) {
+      const coincideAnio = filtroAnio === 'Todos' || anio === Number(filtroAnio)
+
+      if (coincideCultivo && coincideMes && coincideAnio) {
         acumulador[mes] += d.costo_estimado
       }
     })
     setCostoMensual(acumulador)
-  }, [tablaCultivos, filtroCultivo, filtroMes])
+  }, [tablaCultivos, filtroCultivo, filtroMes, filtroAnio])
 
   const tablaFiltrada = tablaCultivos.filter((item) => {
-    const mes = new Date(item.fecha).getMonth()
+    const fecha = new Date(item.fecha)
+    const mes = fecha.getMonth()
+    const anio = fecha.getFullYear()
     const coincideCultivo = filtroCultivo === 'Todos' || item.cultivo === filtroCultivo
     const coincideMes = filtroMes === 'Todos' || mes === Number(filtroMes)
-    return coincideCultivo && coincideMes
+    const coincideAnio = filtroAnio === 'Todos' || anio === Number(filtroAnio)
+    return coincideCultivo && coincideMes && coincideAnio
   })
 
   const cultivosUnicos = [...new Set(tablaCultivos.map((t) => t.cultivo))]
+  const aniosUnicos = [...new Set(tablaCultivos.map((t) => new Date(t.fecha).getFullYear()))].sort()
 
   return (
     <>
@@ -99,6 +108,16 @@ const DashboardPredicciones = () => {
                 <option value="Todos">Todos los meses</option>
                 {meses.map((mes, i) => (
                   <option key={i} value={i}>{mes}</option>
+                ))}
+              </select>
+            </label>
+
+            <label>
+              Año:{' '}
+              <select value={filtroAnio} onChange={(e) => setFiltroAnio(e.target.value)}>
+                <option value="Todos">Todos</option>
+                {aniosUnicos.map((a) => (
+                  <option key={a} value={a}>{a}</option>
                 ))}
               </select>
             </label>
