@@ -17,17 +17,23 @@ import CIcon from '@coreui/icons-react'
 import { cilPeople, cilPlant } from '@coreui/icons'
 import { cifPe } from '@coreui/icons'
 import avatar1 from 'src/assets/images/avatars/1.jpg'
-import { CChartLine } from '@coreui/react-chartjs'
+import { CChartBar } from '@coreui/react-chartjs'
 import MetricasModelo from 'src/components/MetricasModelo'
+import HeatmapCultivo from 'src/components/HeatmapCultivo'
 
 const DashboardPredicciones = () => {
   const [tablaCultivos, setTablaCultivos] = useState([])
   const [costoMensual, setCostoMensual] = useState(Array(12).fill(0))
+  const [costoTradicional, setCostoTradicional] = useState(Array(12).fill(0))
+  const [ahorroMensual, setAhorroMensual] = useState(Array(12).fill(0))
+  const ahorroAnual = ahorroMensual.reduce((acc, val) => acc + val, 0)
   const [filtroCultivo, setFiltroCultivo] = useState('Todos')
   const [filtroMes, setFiltroMes] = useState('Todos')
   const [filtroAnio, setFiltroAnio] = useState(new Date().getFullYear().toString())
   const [topExplicaciones, setTopExplicaciones] = useState([])
 
+  const COSTO_POR_M3 = 1.24
+  const CONSUMO_TEORICO_M3 = 18000
   const meses = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
 
   useEffect(() => {
@@ -43,6 +49,7 @@ const DashboardPredicciones = () => {
           const exp = item.explicacion?.toLowerCase() || 'sin datos'
           explicaciones[exp] = (explicaciones[exp] || 0) + 1
         })
+
         const top3 = Object.entries(explicaciones)
           .sort((a, b) => b[1] - a[1])
           .slice(0, 3)
@@ -57,19 +64,36 @@ const DashboardPredicciones = () => {
 
   useEffect(() => {
     const acumulador = Array(12).fill(0)
+    const tradicional = Array(12).fill(0)
+    const ahorro = Array(12).fill(0)
+
     tablaCultivos.forEach((d) => {
       const fecha = new Date(d.fecha)
       const mes = fecha.getMonth()
       const anio = fecha.getFullYear()
+
       const coincideCultivo = filtroCultivo === 'Todos' || d.cultivo === filtroCultivo
       const coincideMes = filtroMes === 'Todos' || mes === Number(filtroMes)
       const coincideAnio = filtroAnio === 'Todos' || anio === Number(filtroAnio)
 
       if (coincideCultivo && coincideMes && coincideAnio) {
-        acumulador[mes] += d.costo_estimado
+        // Costo estimado real (modelo)
+        if (d.necesitaRiego) {
+          acumulador[mes] += d.costo_estimado
+        }
+
+        // Costo tradicional fijo por mes
+        tradicional[mes] += CONSUMO_TEORICO_M3 * COSTO_POR_M3
       }
     })
+
+    for (let i = 0; i < 12; i++) {
+      ahorro[i] = acumulador[i] - tradicional[i]  
+    }
+
     setCostoMensual(acumulador)
+    setCostoTradicional(tradicional)
+    setAhorroMensual(ahorro)
   }, [tablaCultivos, filtroCultivo, filtroMes, filtroAnio])
 
   const tablaFiltrada = tablaCultivos.filter((item) => {
@@ -85,17 +109,11 @@ const DashboardPredicciones = () => {
   const cultivosUnicos = [...new Set(tablaCultivos.map((t) => t.cultivo))]
   const aniosUnicos = [...new Set(tablaCultivos.map((t) => new Date(t.fecha).getFullYear()))].sort()
 
-  const obtenerColorUrgencia = (p) => {
-    if (p > 80) return 'danger'
-    if (p > 50) return 'warning'
-    return 'success'
-  }
-
   return (
     <>
       <CCard className="mb-4">
         <CCardBody>
-          <h4 className="mb-3">Costo Estimado de Riego por Mes (S/.)</h4>
+          <h4 className="mb-3">Comparativa mensual: Tradicional vs Modelo (S/.)</h4>
 
           <div className="d-flex gap-3 mb-4">
             <label>
@@ -129,120 +147,60 @@ const DashboardPredicciones = () => {
             </label>
           </div>
 
-          <CChartLine
+          <CChartBar
             style={{ height: '300px' }}
             data={{
               labels: meses,
               datasets: [
                 {
-                  label: 'Costo estimado S/.',
-                  backgroundColor: 'rgba(0,123,255,0.1)',
-                  borderColor: '#007bff',
+                  label: 'Costo Tradicional (S/.)',
+                  backgroundColor: '#6c757d',
+                  data: costoTradicional.map((v) => v.toFixed(2)),
+                },
+                {
+                  label: 'Costo Estimado Real (Modelo)',
+                  backgroundColor: '#007bff',
                   data: costoMensual.map((v) => v.toFixed(2)),
-                  fill: true,
+                },
+                {
+                  label: 'Ahorro Simulado',
+                  backgroundColor: '#28a745',
+                  data: ahorroMensual.map((v) => v.toFixed(2)),
                 },
               ],
             }}
+            options={{ responsive: true, maintainAspectRatio: false }}
           />
+          <HeatmapCultivo datos={tablaFiltrada} />
         </CCardBody>
       </CCard>
-
+      <CCard className="mb-4 border-success" style={{ backgroundColor: '#d4edda' }}>
+      <CCardBody>
+        <h5 className="mb-0 text-success">
+          💰 Ahorro Anual Simulado: <strong>S/. {ahorroAnual.toFixed(2)}</strong>
+        </h5>
+        <div className="text-muted small">Basado en predicciones vs. riego tradicional</div>
+      </CCardBody>
+    </CCard>
+    <CCard className="mb-4">
+    <CCardBody>
+      <h5 className="mb-3">⚠️ Principales causas de riego</h5>
+      <ul>
+        {topExplicaciones.map(([motivo, cantidad], index) => (
+          <li key={index}>
+            {motivo.charAt(0).toUpperCase() + motivo.slice(1)}: <strong>{cantidad}</strong> ocurrencias
+          </li>
+        ))}
+      </ul>
+    </CCardBody>
+  </CCard>
       <CCard className="mb-4">
         <CCardBody>
           <MetricasModelo />
         </CCardBody>
       </CCard>
 
-      <CRow>
-        <CCol md={9}>
-          <CCard className="mb-4">
-            <CCardBody>
-              <h4 className="mb-3">Predicciones de Riego</h4>
-              <CTable align="middle" className="mb-0 border" hover responsive>
-                <CTableHead className="text-nowrap">
-                  <CTableRow>
-                    <CTableHeaderCell className="bg-body-tertiary text-center">
-                      <CIcon icon={cilPeople} />
-                    </CTableHeaderCell>
-                    <CTableHeaderCell>Cultivo</CTableHeaderCell>
-                    <CTableHeaderCell className="text-center">País</CTableHeaderCell>
-                    <CTableHeaderCell>Producción</CTableHeaderCell>
-                    <CTableHeaderCell className="text-center">Tipo</CTableHeaderCell>
-                    <CTableHeaderCell>Actividad</CTableHeaderCell>
-                  </CTableRow>
-                </CTableHead>
-                <CTableBody>
-                  {tablaFiltrada.map((item, index) => (
-                    <CTableRow key={index}>
-                      <CTableDataCell className="text-center">
-                        <CAvatar size="md" src={avatar1} status={item.necesitaRiego ? 'danger' : 'success'} />
-                      </CTableDataCell>
-                      <CTableDataCell>
-                        <div>{item.cultivo}</div>
-                        <div className="small text-body-secondary">
-                          Temporada: <strong>{item.temporada}</strong>
-                        </div>
-                      </CTableDataCell>
-                      <CTableDataCell className="text-center">
-                        <CIcon size="xl" icon={cifPe} title="Perú" />
-                      </CTableDataCell>
-                      <CTableDataCell>
-                        <div className="d-flex flex-column text-nowrap">
-                          <div className="fw-semibold">💰 {item.costo_estimado.toFixed(2)} S/.</div>
-                          <small className="text-body-secondary">💧 {(item.costo_estimado / 5.21).toFixed(1)} m³ de agua</small>
-                          <small className="text-body-secondary">
-                            ⚠️ Urgencia:{' '}
-                            <strong>
-                              {item.probabilidad > 80
-                                ? '🔴 Alta'
-                                : item.probabilidad > 50
-                                ? '🟠 Media'
-                                : '🟢 Baja'}
-                            </strong>
-                          </small>
-                          <small className="text-body-secondary">📅 {item.fecha}</small>
-                        </div>
-                        <CProgress
-                          className="mt-2"
-                          thin
-                          color={item.necesitaRiego ? 'danger' : 'success'}
-                          value={item.probabilidad}
-                        />
-                      </CTableDataCell>
-                      <CTableDataCell className="text-center">
-                        <CIcon
-                          size="xl"
-                          icon={cilPlant}
-                          className={`text-${obtenerColorUrgencia(item.probabilidad)}`}
-                        />
-                      </CTableDataCell>
-                      <CTableDataCell>
-                        <div className="small text-body-secondary">Motivo</div>
-                        <div className="fw-semibold">{item.explicacion}</div>
-                      </CTableDataCell>
-                    </CTableRow>
-                  ))}
-                </CTableBody>
-              </CTable>
-            </CCardBody>
-          </CCard>
-        </CCol>
-
-        <CCol md={3}>
-          <CCard className="mb-4">
-            <CCardBody>
-              <h5 className="mb-3">⚠️ Principales causas de riego</h5>
-              <ul>
-                {topExplicaciones.map(([motivo, cantidad], index) => (
-                  <li key={index}>
-                    {motivo.charAt(0).toUpperCase() + motivo.slice(1)}: <strong>{cantidad}</strong> ocurrencias
-                  </li>
-                ))}
-              </ul>
-            </CCardBody>
-          </CCard>
-        </CCol>
-      </CRow>
+      {/* Aquí puedes mantener la tabla y causas de riego si lo deseas */}
     </>
   )
 }
