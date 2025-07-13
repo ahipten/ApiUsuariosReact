@@ -1,3 +1,4 @@
 import AppHeaderDropdown from './AppHeaderDropdown'
-
-export { AppHeaderDropdown }
+import AppHeaderNotifications from './AppHeaderNotifications'
+import 'leaflet/dist/leaflet.css'
+export { AppHeaderDropdown, AppHeaderNotifications }

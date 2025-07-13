@@ -19,7 +19,7 @@ import { cifPe } from '@coreui/icons'
 import avatar1 from 'src/assets/images/avatars/1.jpg'
 import { CChartBar } from '@coreui/react-chartjs'
 import MetricasModelo from 'src/components/MetricasModelo'
-import HeatmapCultivo from 'src/components/HeatmapCultivo'
+import MapaCalorGeografico from '../../components/MapaCalorGeografico'
 
 const DashboardPredicciones = () => {
   const [tablaCultivos, setTablaCultivos] = useState([])
@@ -31,7 +31,7 @@ const DashboardPredicciones = () => {
   const [filtroMes, setFiltroMes] = useState('Todos')
   const [filtroAnio, setFiltroAnio] = useState(new Date().getFullYear().toString())
   const [topExplicaciones, setTopExplicaciones] = useState([])
-
+  const [misLecturasGeolocalizadas, setMisLecturasGeolocalizadas] = useState([])
   const COSTO_POR_M3 = 1.24
   const CONSUMO_TEORICO_M3 = 18000
   const meses = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
@@ -61,6 +61,37 @@ const DashboardPredicciones = () => {
 
     cargarDatos()
   }, [])
+  
+    useEffect(() => {
+      const cargarLecturasGeolocalizadas = async () => {
+        try {
+          const params = new URLSearchParams()
+
+          if (filtroAnio !== 'Todos') {
+            params.append('anio', filtroAnio)
+          }
+
+          if (filtroMes !== 'Todos') {
+            params.append('mes', filtroMes)
+          }
+
+          if (filtroCultivo !== 'Todos') {
+            params.append('cultivo', filtroCultivo)
+          }
+
+          const res = await fetch(`http://localhost:5001/api/Lecturas/geo-lecturas?${params.toString()}`)
+          if (!res.ok) throw new Error('Error al cargar lecturas geolocalizadas')
+          const data = await res.json()
+          setMisLecturasGeolocalizadas(data)
+        } catch (error) {
+          console.error('❌ Error al cargar lecturas geolocalizadas:', error)
+        }
+      }
+
+      cargarLecturasGeolocalizadas()
+    }, [filtroAnio, filtroMes, filtroCultivo])
+
+
 
   useEffect(() => {
     const acumulador = Array(12).fill(0)
@@ -171,7 +202,7 @@ const DashboardPredicciones = () => {
             }}
             options={{ responsive: true, maintainAspectRatio: false }}
           />
-          <HeatmapCultivo datos={tablaFiltrada} />
+         <MapaCalorGeografico datos={misLecturasGeolocalizadas} />
         </CCardBody>
       </CCard>
       <CCard className="mb-4 border-success" style={{ backgroundColor: '#d4edda' }}>

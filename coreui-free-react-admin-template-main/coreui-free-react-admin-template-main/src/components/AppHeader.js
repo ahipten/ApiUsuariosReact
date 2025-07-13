@@ -26,7 +26,7 @@ import {
 } from '@coreui/icons'
 
 import { AppBreadcrumb } from './index'
-import { AppHeaderDropdown } from './header/index'
+import { AppHeaderDropdown,AppHeaderNotifications } from './header'
 
 const AppHeader = () => {
   const headerRef = useRef()
@@ -65,11 +65,7 @@ const AppHeader = () => {
           </CNavItem>
         </CHeaderNav>
         <CHeaderNav className="ms-auto">
-          <CNavItem>
-            <CNavLink href="#">
-              <CIcon icon={cilBell} size="lg" />
-            </CNavLink>
-          </CNavItem>
+          <AppHeaderNotifications />
           <CNavItem>
             <CNavLink href="#">
               <CIcon icon={cilList} size="lg" />
