@@ -1,83 +1,29 @@
-.login-container {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  height: 100vh;
-  background-color: #e9f5ec;
-  font-family: Arial, sans-serif;
+/* Fondo con gradiente y imagen opcional */
+.login-bg {
+  min-height: 100vh;
+  background: linear-gradient(rgba(0,0,0,0.4), rgba(0,0,0,0.4)),
+  url('/src/images/fondo-cultivo.jpg') center/cover no-repeat;
+  /*filter: blur(1px);
+   Si quieres imagen:
+  background: url('/path/fondo.jpg') no-repeat center center fixed;
+  background-size: cover;
+  */
 }
 
-.login-box {
-  background-color: white;
-  padding: 2rem;
-  border-radius: 10px;
-  width: 100%;
-  max-width: 400px;
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+/* Ajustes para la tarjeta de login */
+.card {
+  background: rgba(255, 255, 255, 0.2);
+  backdrop-filter: blur(4px);
+  border: 1px solid rgba(255, 255, 255, 0.3);
 }
 
-.login-header h2 {
-  margin: 0;
-  color: #2e7d32;
-  text-align: center;
+.card-header {
+  border-top-left-radius: 1rem !important;
+  border-top-right-radius: 1rem !important;
 }
 
-.login-header p {
-  margin: 0.5rem 0 1.5rem;
-  text-align: center;
-  color: #555;
-}
-
-.form-group {
-  margin-bottom: 1rem;
-}
-
-.form-group label {
-  display: block;
-  margin-bottom: 0.4rem;
-  font-weight: bold;
-  color: #333;
-}
-
-.form-group input {
-  width: 100%;
-  padding: 0.6rem;
-  border: 1px solid #ccc;
-  border-radius: 6px;
-  font-size: 1rem;
-}
-
-.login-button {
-  width: 100%;
-  padding: 0.8rem;
-  background-color: #2e7d32;
-  color: white;
-  font-size: 1rem;
-  border: none;
-  border-radius: 6px;
-  cursor: pointer;
-  transition: background-color 0.3s;
-}
-
-.login-button:hover {
-  background-color: #1b5e20;
-}
-
-.error {
-  color: red;
-  margin: 0.5rem 0;
-  font-size: 0.9rem;
-  text-align: center;
-}
-
-.login-footer {
-  text-align: center;
-  margin-top: 1rem;
-  font-size: 0.9rem;
-}
-
-.login-footer a {
-  color: #2e7d32;
-  text-decoration: none;
-  font-weight: bold;
+/* Efecto hover en botón */
+button.btn-primary:hover {
+  background-color: #0069d9;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.3);
 }
