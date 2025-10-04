@@ -120,7 +120,7 @@ const DashboardPredicciones = () => {
     })
 
     for (let i = 0; i < 12; i++) {
-      ahorro[i] = acumulador[i] - tradicional[i]
+      ahorro[i] = tradicional[i] - acumulador[i]
     }
 
     setCostoMensual(acumulador)

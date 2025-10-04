@@ -34,15 +34,18 @@ const LecturaImport = () => {
     setSuccess(null)
     setError(null)
 
+    if (!selectedFile) return
+
     Papa.parse(selectedFile, {
       header: true,
       skipEmptyLines: true,
+      encoding: 'ISO-8859-1', // 👈 fuerza codificación correcta
       complete: (result) => {
         const data = result.data
         if (data.length > 0) {
           setHeaders(Object.keys(data[0]))
           setPreview(data.slice(0, 5)) // Vista previa: primeras 5 filas
-          setTotalRows(data.length) // Mostrar cuántas filas totales hay
+          setTotalRows(data.length) // Total de filas detectadas
         }
       },
       error: () => {
@@ -70,12 +73,17 @@ const LecturaImport = () => {
           'Content-Type': 'multipart/form-data',
         },
       })
+
       setSuccess('Lecturas importadas exitosamente.')
       setPreview([])
       setFile(null)
       setTotalRows(0)
     } catch (err) {
-      setError(err.response?.data?.mensaje || 'Error al importar lecturas.')
+      setError(
+        err.response?.data?.mensaje || // si backend manda {mensaje: "..."}
+        err.response?.data || // si backend manda texto plano
+        'Error al importar lecturas.'
+      )
     }
   }
 
@@ -89,12 +97,18 @@ const LecturaImport = () => {
       {error && <CAlert color="danger">{error}</CAlert>}
 
       <CForm onSubmit={handleSubmit}>
-        <CFormInput type="file" accept=".csv" onChange={handleFileChange} />
+        <CFormInput
+          key={file ? file.name : 'empty'} // 👈 reset visual tras importar
+          type="file"
+          accept=".csv"
+          onChange={handleFileChange}
+        />
 
         {preview.length > 0 && (
           <div className="mt-4">
             <h5>
-              Vista previa (primeras 5 filas) — Total de lecturas detectadas: <strong>{totalRows}</strong>
+              Vista previa (primeras 5 filas) — Total de lecturas detectadas:{' '}
+              <strong>{totalRows}</strong>
             </h5>
             <CTable striped responsive>
               <CTableHead>

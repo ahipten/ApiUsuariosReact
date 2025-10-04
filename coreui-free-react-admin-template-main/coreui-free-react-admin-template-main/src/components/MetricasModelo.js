@@ -43,7 +43,7 @@ const MetricasModelo = () => {
 
   return (
     <div>
-      <h4 className="mb-4">📊 Rendimiento del Modelo de Riego</h4>
+      <h4 className="mb-4">📊 Rendimiento del Modelo de Riego escogido: <span className="text-primary">{metricas.modelo}</span></h4>
       <CRow>
         {renderCard('Accuracy', metricas.accuracy)}
         {renderCard('Precision', metricas.precision)}
