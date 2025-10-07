@@ -1,48 +1,30 @@
-import React from 'react'
-import { MapContainer, TileLayer, useMap } from 'react-leaflet'
-import 'leaflet.heat'
-import { useEffect } from 'react'
+import React, { useMemo } from 'react'
+import { GoogleMap, HeatmapLayer, useJsApiLoader } from '@react-google-maps/api'
 
-const HeatLayer = ({ points }) => {
-  const map = useMap()
+const MapaCalorGeografico = ({ data = [] }) => {
+  // 🔹 Carga segura del script de Google Maps
+  const { isLoaded, loadError } = useJsApiLoader({
+    googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY, // Usa tu clave
+    libraries: ['visualization'],
+  })
 
-  useEffect(() => {
-    if (!map) return
+  // 🔹 Convierte tus coordenadas a objetos LatLng SOLO cuando esté listo
+  const heatmapData = useMemo(() => {
+    if (!isLoaded || !window.google?.maps) return []
+    return data.map((p) => new window.google.maps.LatLng(p.lat, p.lng))
+  }, [isLoaded, data])
 
-    const heatLayer = window.L.heatLayer(points, {
-      radius: 25,
-      blur: 15,
-      maxZoom: 17,
-      gradient: {
-        0.2: 'blue',
-        0.4: 'lime',
-        0.6: 'orange',
-        0.8: 'red',
-      },
-    }).addTo(map)
-
-    return () => {
-      heatLayer.remove()
-    }
-  }, [map, points])
-
-  return null
-}
-
-const MapaCalorGeografico = ({ datos }) => {
-  // Asegúrate que cada dato tenga coordenadas: lat, lng, y peso
-  const puntos = datos
-    .filter((d) => d.lat && d.lng)
-    .map((d) => [d.lat, d.lng, d.intensidad || 0.5]) // intensidad opcional
+  if (loadError) return <p>❌ Error al cargar el mapa.</p>
+  if (!isLoaded) return <p>⏳ Cargando mapa...</p>
 
   return (
-    <MapContainer center={[-9.474167, -78.310556]} zoom={12} style={{ height: '400px', width: '100%' }}>
-      <TileLayer
-        attribution='&copy; OpenStreetMap contributors'
-        url='https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'
-      />
-      <HeatLayer points={puntos} />
-    </MapContainer>
+    <GoogleMap
+      mapContainerStyle={{ width: '100%', height: '500px' }}
+      center={{ lat: -9.475, lng: -78.3 }}
+      zoom={10}
+    >
+      <HeatmapLayer data={heatmapData} />
+    </GoogleMap>
   )
 }
 

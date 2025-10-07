@@ -1,26 +1,16 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useMemo } from 'react'
 import {
   CAlert,
   CBadge,
-  CButton,
   CCard,
   CCardBody,
   CCol,
-  CModal,
-  CModalBody,
-  CModalHeader,
-  CModalTitle,
+  CFormSelect,
   CRow,
   CSpinner,
-  CFormSelect,
-  CTable,
-  CTableBody,
-  CTableDataCell,
-  CTableHead,
-  CTableHeaderCell,
-  CTableRow,
 } from '@coreui/react'
 import { CChartLine } from '@coreui/react-chartjs'
+import { motion } from 'framer-motion'
 import MetricasModelo from 'src/components/MetricasModelo'
 import MapaCalorGeografico from '../../components/MapaCalorGeografico'
 
@@ -30,56 +20,43 @@ const DashboardPredicciones = () => {
   const [costoTradicional, setCostoTradicional] = useState(Array(12).fill(0))
   const [ahorroMensual, setAhorroMensual] = useState(Array(12).fill(0))
   const [misLecturasGeolocalizadas, setMisLecturasGeolocalizadas] = useState([])
-  const [topExplicaciones, setTopExplicaciones] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [filtroCultivo, setFiltroCultivo] = useState('Todos')
   const [filtroMes, setFiltroMes] = useState('Todos')
   const [filtroAnio, setFiltroAnio] = useState(new Date().getFullYear().toString())
+  const [tiempoCarga, setTiempoCarga] = useState(0) // ⏱️ Tiempo total de carga
 
-  // --- Modal de detalle ---
-  const [modalVisible, setModalVisible] = useState(false)
-  const [pagina, setPagina] = useState(1)
-  const registrosPorPagina = 10
-
-  const COSTO_POR_M3 = 1.24
-  const CONSUMO_TEORICO_M3 = 18000
   const meses = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
-
   const ahorroAnual = ahorroMensual.reduce((acc, val) => acc + val, 0)
 
+  // 🔹 Cargar datos principales (predicciones)
   useEffect(() => {
     const cargarDatos = async () => {
+      const start = performance.now()
       try {
         setLoading(true)
         const res = await fetch('http://localhost:5001/api/predicciones/regar-todos')
         if (!res.ok) throw new Error('Error al cargar datos')
         const datos = await res.json()
         setTablaCultivos(datos)
-
-        const explicaciones = {}
-        datos.forEach((item) => {
-          const exp = item.explicacion?.toLowerCase() || 'sin datos'
-          explicaciones[exp] = (explicaciones[exp] || 0) + 1
-        })
-
-        const top3 = Object.entries(explicaciones)
-          .sort((a, b) => b[1] - a[1])
-          .slice(0, 3)
-        setTopExplicaciones(top3)
       } catch (err) {
         setError('❌ Error al cargar datos de predicciones')
         console.error(err)
       } finally {
+        const end = performance.now()
+        console.log(`⏱️ Tiempo de carga de predicciones: ${(end - start).toFixed(2)} ms`)
+        setTiempoCarga((end - start).toFixed(2))
         setLoading(false)
       }
     }
-
     cargarDatos()
   }, [])
 
+  // 🔹 Cargar lecturas geolocalizadas desde el backend con filtros
   useEffect(() => {
     const cargarLecturasGeolocalizadas = async () => {
+      const start = performance.now()
       try {
         const params = new URLSearchParams()
         if (filtroAnio !== 'Todos') params.append('anio', filtroAnio)
@@ -88,290 +65,232 @@ const DashboardPredicciones = () => {
 
         const res = await fetch(`http://localhost:5001/api/Lecturas/geo-lecturas?${params.toString()}`)
         if (!res.ok) throw new Error('Error al cargar lecturas geolocalizadas')
+
         const data = await res.json()
         setMisLecturasGeolocalizadas(data)
       } catch (err) {
         setError('❌ Error al cargar lecturas geolocalizadas')
         console.error(err)
+      } finally {
+        const end = performance.now()
+        const tiempo = (end - start).toFixed(2)
+        console.log(`⏱️ Tiempo de carga de lecturas: ${tiempo} ms`)
+        setTiempoCarga(tiempo)
       }
     }
-
     cargarLecturasGeolocalizadas()
   }, [filtroAnio, filtroMes, filtroCultivo])
 
+  // 🔹 Calcular costos y ahorro mensual
   useEffect(() => {
+    if (!misLecturasGeolocalizadas.length) return
+
     const acumulador = Array(12).fill(0)
     const tradicional = Array(12).fill(0)
     const ahorro = Array(12).fill(0)
 
-    tablaCultivos.forEach((d) => {
-      const fecha = new Date(d.fecha)
+    misLecturasGeolocalizadas.forEach((l) => {
+      const fecha = new Date(l.fecha)
       const mes = fecha.getMonth()
-      const anio = fecha.getFullYear()
 
-      const coincideCultivo = filtroCultivo === 'Todos' || d.cultivo === filtroCultivo
-      const coincideMes = filtroMes === 'Todos' || mes === Number(filtroMes)
-      const coincideAnio = filtroAnio === 'Todos' || anio === Number(filtroAnio)
-
-      if (coincideCultivo && coincideMes && coincideAnio) {
-        if (d.necesitaRiego) acumulador[mes] += d.costo_estimado
-        tradicional[mes] += CONSUMO_TEORICO_M3 * COSTO_POR_M3
-      }
+      acumulador[mes] += l.costoEstimado || 0
+      tradicional[mes] += l.costoTradicional || 0
+      ahorro[mes] += l.ahorroSimulado || 0
     })
-
-    for (let i = 0; i < 12; i++) {
-      ahorro[i] = tradicional[i] - acumulador[i]
-    }
 
     setCostoMensual(acumulador)
     setCostoTradicional(tradicional)
     setAhorroMensual(ahorro)
-  }, [tablaCultivos, filtroCultivo, filtroMes, filtroAnio])
+  }, [misLecturasGeolocalizadas])
 
+  // 🔹 Derivados
   const cultivosUnicos = [...new Set(tablaCultivos.map((t) => t.cultivo))]
   const aniosUnicos = [...new Set(tablaCultivos.map((t) => new Date(t.fecha).getFullYear()))].sort()
+  const cultivosParaRiego = tablaCultivos.filter((d) => d.necesitaRiego)
 
-  // --- Cultivos que requieren riego ---
-  const cultivosParaRiego = tablaCultivos.filter(d => d.necesitaRiego)
-  const top5 = [...cultivosParaRiego]
-    .sort((a, b) => (b.litros_estimados || 0) - (a.litros_estimados || 0))
-    .slice(0, 5)
+  // 🔹 Memo para el mapa (evita re-render innecesarios)
+  const datosMemo = useMemo(() => {
+    if (!Array.isArray(misLecturasGeolocalizadas)) return []
+    return misLecturasGeolocalizadas.map((d) => ({
+      lat: d.lat,
+      lng: d.lng,
+      intensidad: d.intensidad ?? d.humedad ?? 0,
+    }))
+  }, [misLecturasGeolocalizadas])
 
   if (loading) {
     return (
-      <div className="text-center my-5">
+      <div className="flex flex-col justify-center items-center h-[60vh]">
         <CSpinner color="primary" />
+        <p className="mt-3 text-gray-600">Cargando datos de predicciones...</p>
       </div>
     )
   }
 
   return (
-    <>
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.8 }}
+      className="p-4 space-y-6 bg-gray-50 dark:bg-gray-900 transition-colors duration-300"
+    >
       {error && <CAlert color="danger">{error}</CAlert>}
 
       {/* --- KPIs principales --- */}
-      <CRow className="mb-4">
-        <CCol md={4}>
-          <CCard color="success" textColor="white">
-            <CCardBody>
-              <h5>💰 Ahorro Anual Simulado</h5>
-              <h3>S/. {ahorroAnual.toFixed(2)}</h3>
-              <div className="small">Predicción vs riego tradicional</div>
-            </CCardBody>
-          </CCard>
+      <CRow className="g-4">
+        <CCol md={3}>
+          <div className="rounded-xl bg-gradient-to-br from-green-500 to-emerald-600 text-white p-5 shadow-md hover:shadow-lg transition-all">
+            <h5 className="text-lg font-semibold mb-2">💰 Ahorro Anual Simulado</h5>
+            <h2 className="text-4xl font-bold">S/. {ahorroAnual.toFixed(2)}</h2>
+            <p className="text-sm opacity-90">Predicción vs riego tradicional</p>
+          </div>
         </CCol>
-        <CCol md={4}>
-          <CCard color="info" textColor="white">
-            <CCardBody>
-              <h5>🌱 Cultivos que requieren riego hoy</h5>
-              <h3>{cultivosParaRiego.length}</h3>
-              <div className="small">Según el modelo de predicción</div>
-            </CCardBody>
-          </CCard>
+        <CCol md={3}>
+          <div className="rounded-xl bg-gradient-to-br from-sky-500 to-blue-600 text-white p-5 shadow-md hover:shadow-lg transition-all">
+            <h5 className="text-lg font-semibold mb-2">🌱 Cultivos que requieren riego hoy</h5>
+            <h2 className="text-4xl font-bold">{cultivosParaRiego.length}</h2>
+            <p className="text-sm opacity-90">Según el modelo de predicción</p>
+          </div>
         </CCol>
-        <CCol md={4}>
-          <CCard color="primary" textColor="white">
-            <CCardBody>
-              <h5>💧 Volumen estimado de riego</h5>
-              <h3>
-                {cultivosParaRiego.reduce((sum, c) => sum + (c.litros_estimados || 0), 0).toFixed(0)} m³
-              </h3>
-              <div className="small">Total recomendado</div>
-            </CCardBody>
-          </CCard>
+        <CCol md={3}>
+          <div className="rounded-xl bg-gradient-to-br from-cyan-500 to-teal-600 text-white p-5 shadow-md hover:shadow-lg transition-all">
+            <h5 className="text-lg font-semibold mb-2">💧 Volumen estimado de riego</h5>
+            <h2 className="text-4xl font-bold">
+              {cultivosParaRiego
+                .reduce((sum, c) => sum + (c.litros_estimados || 0), 0)
+                .toFixed(0)}{' '}
+              m³
+            </h2>
+            <p className="text-sm opacity-90">Total recomendado</p>
+          </div>
         </CCol>
-      </CRow>
-
-      {/* --- Filtros --- */}
-      <CRow className="mb-4">
-        <CCol md={4}>
-          <CFormSelect
-            label="Cultivo"
-            value={filtroCultivo}
-            onChange={(e) => setFiltroCultivo(e.target.value)}
-          >
-            <option value="Todos">Todos los cultivos</option>
-            {cultivosUnicos.map((c) => (
-              <option key={c} value={c}>{c}</option>
-            ))}
-          </CFormSelect>
-        </CCol>
-        <CCol md={4}>
-          <CFormSelect
-            label="Mes"
-            value={filtroMes}
-            onChange={(e) => setFiltroMes(e.target.value)}
-          >
-            <option value="Todos">Todos los meses</option>
-            {meses.map((mes, i) => (
-              <option key={i} value={i}>{mes}</option>
-            ))}
-          </CFormSelect>
-        </CCol>
-        <CCol md={4}>
-          <CFormSelect
-            label="Año"
-            value={filtroAnio}
-            onChange={(e) => setFiltroAnio(e.target.value)}
-          >
-            <option value="Todos">Todos</option>
-            {aniosUnicos.map((a) => (
-              <option key={a} value={a}>{a}</option>
-            ))}
-          </CFormSelect>
+        <CCol md={3}>
+          <div className="rounded-xl bg-gradient-to-br from-purple-500 to-indigo-600 text-white p-5 shadow-md hover:shadow-lg transition-all">
+            <h5 className="text-lg font-semibold mb-2">⏱️ Tiempo de carga</h5>
+            <h2 className="text-4xl font-bold">{tiempoCarga} ms</h2>
+            <p className="text-sm opacity-90">Medido en frontend</p>
+          </div>
         </CCol>
       </CRow>
 
-      {/* --- Gráfico de costos --- */}
-      <CCard className="mb-4">
+      {/* --- Métricas del modelo --- */}
+      <CCard className="shadow-sm border-0 bg-gray-900/10 dark:bg-gray-800/40">
         <CCardBody>
-          <h4 className="mb-3">Comparativa mensual: Tradicional vs Modelo (S/.)</h4>
-          <CChartLine
-            style={{ height: '300px' }}
-            data={{
-              labels: meses,
-              datasets: [
-                {
-                  label: 'Costo Tradicional',
-                  borderColor: '#6c757d',
-                  backgroundColor: 'rgba(108,117,125,0.2)',
-                  data: costoTradicional.map((v) => v.toFixed(2)),
-                  fill: true,
-                },
-                {
-                  label: 'Costo Estimado (Modelo)',
-                  borderColor: '#007bff',
-                  backgroundColor: 'rgba(0,123,255,0.2)',
-                  data: costoMensual.map((v) => v.toFixed(2)),
-                  fill: true,
-                },
-                {
-                  label: 'Ahorro Simulado',
-                  borderColor: '#28a745',
-                  backgroundColor: 'rgba(40,167,69,0.2)',
-                  data: ahorroMensual.map((v) => v.toFixed(2)),
-                  fill: true,
-                },
-              ],
-            }}
-            options={{
-              responsive: true,
-              plugins: {
-                tooltip: {
-                  callbacks: {
-                    label: (context) =>
-                      `${context.dataset.label}: S/. ${Number(context.raw).toLocaleString()}`,
-                  },
-                },
-              },
-            }}
-          />
+          <h4 className="mb-4 font-semibold text-gray-800 dark:text-gray-100">
+            📊 Rendimiento del Modelo de Riego
+          </h4>
+          <MetricasModelo />
         </CCardBody>
       </CCard>
 
-      {/* --- Mapa de riego --- */}
-      <CCard className="mb-4">
+      {/* --- Filtros --- */}
+      <CCard className="shadow-sm border-0 bg-gray-900/10 dark:bg-gray-800/40">
         <CCardBody>
-          <h4 className="mb-3">Mapa de riego recomendado</h4>
-          <MapaCalorGeografico datos={misLecturasGeolocalizadas} />
-          <div className="small text-muted mt-2">
-            Colores: <CBadge color="primary">Recomendado</CBadge>{' '}
+          <h4 className="mb-3 font-semibold text-gray-800 dark:text-gray-100">Filtros</h4>
+          <CRow className="g-3">
+            <CCol md={4}>
+              <CFormSelect label="Cultivo" value={filtroCultivo} onChange={(e) => setFiltroCultivo(e.target.value)}>
+                <option value="Todos">Todos los cultivos</option>
+                {cultivosUnicos.map((c) => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </CFormSelect>
+            </CCol>
+            <CCol md={4}>
+              <CFormSelect label="Mes" value={filtroMes} onChange={(e) => setFiltroMes(e.target.value)}>
+                <option value="Todos">Todos los meses</option>
+                {meses.map((mes, i) => (
+                  <option key={i} value={i}>{mes}</option>
+                ))}
+              </CFormSelect>
+            </CCol>
+            <CCol md={4}>
+              <CFormSelect label="Año" value={filtroAnio} onChange={(e) => setFiltroAnio(e.target.value)}>
+                <option value="Todos">Todos</option>
+                {aniosUnicos.map((a) => (
+                  <option key={a} value={a}>{a}</option>
+                ))}
+              </CFormSelect>
+            </CCol>
+          </CRow>
+        </CCardBody>
+      </CCard>
+
+      {/* --- Gráfico --- */}
+      <CCard className="shadow-sm border-0 bg-gray-900/10 dark:bg-gray-800/40">
+        <CCardBody>
+          <h4 className="mb-3 font-semibold text-gray-800 dark:text-gray-100">
+            Comparativa mensual: Tradicional vs Modelo (S/.)
+          </h4>
+
+          {misLecturasGeolocalizadas.length === 0 ? (
+            <div className="flex justify-center items-center h-[300px]">
+              <CSpinner color="info" />
+            </div>
+          ) : (
+            <CChartLine
+              style={{ height: '320px' }}
+              data={{
+                labels: meses,
+                datasets: [
+                  {
+                    label: 'Costo Tradicional',
+                    borderColor: '#9ca3af',
+                    backgroundColor: 'rgba(156,163,175,0.2)',
+                    data: costoTradicional.map((v) => v.toFixed(2)),
+                    fill: true,
+                  },
+                  {
+                    label: 'Costo Estimado (Modelo)',
+                    borderColor: '#3b82f6',
+                    backgroundColor: 'rgba(59,130,246,0.2)',
+                    data: costoMensual.map((v) => v.toFixed(2)),
+                    fill: true,
+                  },
+                  {
+                    label: 'Ahorro Simulado',
+                    borderColor: '#10b981',
+                    backgroundColor: 'rgba(16,185,129,0.2)',
+                    data: ahorroMensual.map((v) => v.toFixed(2)),
+                    fill: true,
+                  },
+                ],
+              }}
+              options={{
+                responsive: true,
+                plugins: {
+                  legend: { labels: { color: '#ccc' } },
+                  tooltip: {
+                    callbacks: {
+                      label: (context) =>
+                        `${context.dataset.label}: S/. ${Number(context.raw).toLocaleString()}`,
+                    },
+                  },
+                },
+                scales: {
+                  x: { ticks: { color: '#ccc' } },
+                  y: { ticks: { color: '#ccc' } },
+                },
+              }}
+            />
+          )}
+        </CCardBody>
+      </CCard>
+
+      {/* --- Mapa --- */}
+      <CCard className="shadow-sm border-0 bg-gray-900/10 dark:bg-gray-800/40">
+        <CCardBody>
+          <h4 className="mb-3 font-semibold text-gray-800 dark:text-gray-100">🗺️ Mapa de Riego Recomendado</h4>
+          <MapaCalorGeografico lecturas={datosMemo} />
+          <div className="small text-muted mt-3">
+            Colores:&nbsp;
+            <CBadge color="primary">Recomendado</CBadge>{' '}
             <CBadge color="success">Óptimo</CBadge>{' '}
             <CBadge color="danger">Riego urgente</CBadge>
           </div>
         </CCardBody>
       </CCard>
-
-      {/* --- Top 5 de cultivos con mayor volumen de riego --- */}
-      <CCard className="mb-4">
-        <CCardBody>
-          <h5>🌾 Top 5 cultivos que requieren riego (por volumen)</h5>
-          {top5.length === 0 ? (
-            <p className="text-muted">No hay riego recomendado actualmente</p>
-          ) : (
-            <ul>
-              {top5.map((c, i) => (
-                <li key={i}>
-                  <strong>{c.cultivo}</strong> – {new Date(c.fecha).toLocaleDateString()} –{' '}
-                  <CBadge color="primary">{c.litros_estimados || 0} m³</CBadge>
-                </li>
-              ))}
-            </ul>
-          )}
-          {cultivosParaRiego.length > 5 && (
-            <CButton color="link" onClick={() => setModalVisible(true)}>
-              Ver todos ({cultivosParaRiego.length})
-            </CButton>
-          )}
-        </CCardBody>
-      </CCard>
-
-      {/* --- Modal con tabla paginada de todos los cultivos --- */}
-      <CModal size="lg" visible={modalVisible} onClose={() => setModalVisible(false)}>
-        <CModalHeader onClose={() => setModalVisible(false)}>
-          <CModalTitle>Detalle completo de cultivos que requieren riego</CModalTitle>
-        </CModalHeader>
-        <CModalBody>
-          <CTable striped hover responsive>
-            <CTableHead>
-              <CTableRow>
-                <CTableHeaderCell>Cultivo</CTableHeaderCell>
-                <CTableHeaderCell>Fecha</CTableHeaderCell>
-                <CTableHeaderCell>Litros (m³)</CTableHeaderCell>
-              </CTableRow>
-            </CTableHead>
-            <CTableBody>
-              {cultivosParaRiego
-                .slice((pagina - 1) * registrosPorPagina, pagina * registrosPorPagina)
-                .map((c, i) => (
-                  <CTableRow key={i}>
-                    <CTableDataCell>{c.cultivo}</CTableDataCell>
-                    <CTableDataCell>{new Date(c.fecha).toLocaleDateString()}</CTableDataCell>
-                    <CTableDataCell>{c.litros_estimados || 0}</CTableDataCell>
-                  </CTableRow>
-                ))}
-            </CTableBody>
-          </CTable>
-          <div className="d-flex justify-content-between mt-3">
-            <CButton
-              disabled={pagina === 1}
-              onClick={() => setPagina(pagina - 1)}
-            >
-              Anterior
-            </CButton>
-            <span>Página {pagina}</span>
-            <CButton
-              disabled={pagina * registrosPorPagina >= cultivosParaRiego.length}
-              onClick={() => setPagina(pagina + 1)}
-            >
-              Siguiente
-            </CButton>
-          </div>
-        </CModalBody>
-      </CModal>
-
-      {/* --- Principales causas de riego --- */}
-      <CCard className="mb-4">
-        <CCardBody>
-          <h5>⚠️ Principales causas de riego</h5>
-          <ul>
-            {topExplicaciones.map(([motivo, cantidad], index) => (
-              <li key={index}>
-                {motivo.charAt(0).toUpperCase() + motivo.slice(1)}:{' '}
-                <strong>{cantidad}</strong> ocurrencias
-              </li>
-            ))}
-          </ul>
-        </CCardBody>
-      </CCard>
-
-      {/* --- Métricas del modelo --- */}
-      <CCard className="mb-4">
-        <CCardBody>
-          <MetricasModelo />
-        </CCardBody>
-      </CCard>
-    </>
+    </motion.div>
   )
 }
 
