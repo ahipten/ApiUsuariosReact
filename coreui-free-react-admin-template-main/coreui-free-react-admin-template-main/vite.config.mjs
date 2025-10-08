@@ -33,6 +33,10 @@ export default defineConfig(() => {
     resolve: {
       alias: [
         {
+          find: '@',
+          replacement: path.resolve(__dirname, 'src'),
+        },
+        {
           find: 'src/',
           replacement: `${path.resolve(__dirname, 'src')}/`,
         },
@@ -41,8 +45,8 @@ export default defineConfig(() => {
     },
     server: {
       port: 3000,
-      proxy: {
-        // https://vitejs.dev/config/server-options.html
+       proxy: {
+       // https://vitejs.dev/config/server-options.html
       },
     },
   }
