@@ -30,8 +30,10 @@ const DashboardPredicciones = () => {
   const [mensajeProgreso, setMensajeProgreso] = useState('')
   const [tiempoCarga, setTiempoCarga] = useState(0)
   const [error, setError] = useState('')
+
+  // --- Parámetros del sistema ---
   const [areaHa, setAreaHa] = useState(1)
-  const [metodoRiego, setMetodoRiego] = useState('Goteo') // 'Goteo' | 'Aspersión' | 'Surcos'
+  const [metodoRiego, setMetodoRiego] = useState('Goteo')
 
   // --- Filtros ---
   const [filtroCultivo, setFiltroCultivo] = useState('Todos')
@@ -44,7 +46,26 @@ const DashboardPredicciones = () => {
   ]
 
   // ============================
-  // 🚀 Nueva carga progresiva (streaming NDJSON)
+  // 🧠 Importancia de características
+  // ============================
+  const [datosImportancia, setDatosImportancia] = useState([])
+
+  useEffect(() => {
+    const fetchImportancia = async () => {
+      try {
+        const resp = await fetch('http://localhost:5001/api/Predicciones/importancia-caracteristicas')
+        if (!resp.ok) throw new Error(`Error HTTP ${resp.status}`)
+        const data = await resp.json()
+        setDatosImportancia(data)
+      } catch (err) {
+        console.error('Error al obtener importancia de características:', err)
+      }
+    }
+    fetchImportancia()
+  }, [])
+
+  // ============================
+  // 🚀 Carga de lecturas (stream NDJSON)
   // ============================
   useEffect(() => {
     const fetchLecturasStream = async () => {
@@ -65,7 +86,7 @@ const DashboardPredicciones = () => {
         const decoder = new TextDecoder('utf-8')
         let buffer = ''
         let contador = 0
-        let lote = [] // <--- buffer temporal
+        let lote = []
         const loteTam = 2000
         let ultimoFlush = Date.now()
 
@@ -84,7 +105,6 @@ const DashboardPredicciones = () => {
               lote.push(lectura)
               contador++
 
-              // Si el lote está lleno o pasaron 2 segundos => actualiza estado
               const ahora = Date.now()
               if (lote.length >= loteTam || ahora - ultimoFlush > 2000) {
                 const copia = [...lote]
@@ -103,11 +123,7 @@ const DashboardPredicciones = () => {
           }
         }
 
-        // Flush final (si quedó algo en buffer)
-        if (lote.length > 0) {
-          setLecturas(prev => [...prev, ...lote])
-        }
-
+        if (lote.length > 0) setLecturas(prev => [...prev, ...lote])
         setProgresoCarga(100)
         setMensajeProgreso('✅ Lecturas cargadas correctamente')
         setTiempoCarga(performance.now() - inicio)
@@ -124,21 +140,20 @@ const DashboardPredicciones = () => {
   }, [])
 
   // ============================
-  // Filtros únicos
+  // 🔹 Filtros y agrupación
   // ============================
-  const cultivosUnicos = useMemo(() => {
-    return ['Todos', ...new Set(lecturas.map((l) => l.cultivo))].filter(Boolean)
-  }, [lecturas])
+  const cultivosUnicos = useMemo(
+    () => ['Todos', ...new Set(lecturas.map(l => l.cultivo))].filter(Boolean),
+    [lecturas]
+  )
 
-  const aniosUnicos = useMemo(() => {
-    return ['Todos', ...new Set(lecturas.map((l) => new Date(l.fecha).getFullYear()))].filter(Boolean)
-  }, [lecturas])
+  const aniosUnicos = useMemo(
+    () => ['Todos', ...new Set(lecturas.map(l => new Date(l.fecha).getFullYear()))].filter(Boolean),
+    [lecturas]
+  )
 
-  // ============================
-  // Filtro diferido (rendimiento)
-  // ============================
   const lecturasFiltradas = useMemo(() => {
-    return lecturas.filter((l) => {
+    return lecturas.filter(l => {
       const fecha = new Date(l.fecha)
       const mes = fecha.getMonth()
       const anio = fecha.getFullYear()
@@ -152,9 +167,6 @@ const DashboardPredicciones = () => {
 
   const lecturasDeferidas = useDeferredValue(lecturasFiltradas)
 
-  // ============================
-  // Agrupación mensual
-  // ============================
   const agrupadasPorMes = useMemo(() => {
     const acc = {}
     for (const l of lecturasDeferidas) {
@@ -174,23 +186,22 @@ const DashboardPredicciones = () => {
     return aA === bA ? aM - bM : aA - bA
   })
 
-  const labels = clavesOrdenadas.map((k) => {
+  const labels = clavesOrdenadas.map(k => {
     const [anio, mes] = k.split('-').map(Number)
     return `${meses[mes]} ${anio}`
   })
 
-  const costoTradicional = clavesOrdenadas.map((k) => agrupadasPorMes[k].t.toFixed(2))
-  const costoEstimado = clavesOrdenadas.map((k) => agrupadasPorMes[k].e.toFixed(2))
-  const ahorroMensual = clavesOrdenadas.map((k) => agrupadasPorMes[k].a.toFixed(2))
+  const costoTradicional = clavesOrdenadas.map(k => agrupadasPorMes[k].t.toFixed(2))
+  const costoEstimado = clavesOrdenadas.map(k => agrupadasPorMes[k].e.toFixed(2))
+  const ahorroMensual = clavesOrdenadas.map(k => agrupadasPorMes[k].a.toFixed(2))
 
-  const abreviarMonto = (valor) => {
+  const abreviarMonto = valor => {
     const num = Number(valor)
     if (num >= 1_000_000) return (num / 1_000_000).toFixed(1) + 'M'
     if (num >= 1_000) return (num / 1_000).toFixed(1) + 'K'
     return num.toFixed(0)
   }
 
-  // Límite de puntos visibles en el mapa
   const lecturasMapa = useMemo(() => lecturasDeferidas.slice(0, 3000), [lecturasDeferidas])
 
   // ============================
@@ -203,23 +214,10 @@ const DashboardPredicciones = () => {
       animate={{ opacity: 1 }}
       transition={{ duration: 0.5 }}
     >
-      <CCard className="shadow-sm border-0 bg-gray-900/10 dark:bg-gray-800/40">
-  <CCardBody>
-    <h4 className="mb-3 font-semibold text-gray-800 dark:text-gray-100">
-      💡 Recomendación para el Agricultor
-    </h4>
+      {/* 🔹 Recomendación Inteligente de Riego */}
+      <RecomendacionRiego />
 
-    <RecomendacionRiego
-      lecturas={lecturasDeferidas}         // usa las lecturas filtradas actuales
-      cultivoSeleccionado={filtroCultivo}  // "Todos" o un cultivo
-      areaHa={areaHa}                      // puedes controlar esto con un input
-      metodoRiego={metodoRiego}            // idem
-      riegoTradicionalM3Ha={50}            // referencia (ajústala según tu realidad)
-    />
-  </CCardBody>
-</CCard>
-
-      {/* Métricas */}
+      {/* 🔹 Rendimiento del modelo */}
       <CCard className="shadow-sm border-0 bg-gray-900/10 dark:bg-gray-800/40">
         <CCardBody>
           <h4 className="mb-4 font-semibold text-gray-800 dark:text-gray-100">
@@ -229,28 +227,20 @@ const DashboardPredicciones = () => {
         </CCardBody>
       </CCard>
 
-      {/* Filtros */}
+      {/* 🔹 Filtros */}
       <CCard className="shadow-sm border-0 bg-gray-900/10 dark:bg-gray-800/40">
         <CCardBody>
           <h4 className="mb-3 font-semibold text-gray-800 dark:text-gray-100">Filtros</h4>
           <CRow className="g-3">
             <CCol md={4}>
-              <CFormSelect
-                label="Cultivo"
-                value={filtroCultivo}
-                onChange={(e) => setFiltroCultivo(e.target.value)}
-              >
-                {cultivosUnicos.map((c) => (
+              <CFormSelect label="Cultivo" value={filtroCultivo} onChange={(e) => setFiltroCultivo(e.target.value)}>
+                {cultivosUnicos.map(c => (
                   <option key={c} value={c}>{c}</option>
                 ))}
               </CFormSelect>
             </CCol>
             <CCol md={4}>
-              <CFormSelect
-                label="Mes"
-                value={filtroMes}
-                onChange={(e) => setFiltroMes(e.target.value)}
-              >
+              <CFormSelect label="Mes" value={filtroMes} onChange={(e) => setFiltroMes(e.target.value)}>
                 <option value="Todos">Todos los meses</option>
                 {meses.map((mes, i) => (
                   <option key={i} value={i}>{mes}</option>
@@ -258,12 +248,8 @@ const DashboardPredicciones = () => {
               </CFormSelect>
             </CCol>
             <CCol md={4}>
-              <CFormSelect
-                label="Año"
-                value={filtroAnio}
-                onChange={(e) => setFiltroAnio(e.target.value)}
-              >
-                {aniosUnicos.map((a) => (
+              <CFormSelect label="Año" value={filtroAnio} onChange={(e) => setFiltroAnio(e.target.value)}>
+                {aniosUnicos.map(a => (
                   <option key={a} value={a}>{a}</option>
                 ))}
               </CFormSelect>
@@ -272,13 +258,11 @@ const DashboardPredicciones = () => {
         </CCardBody>
       </CCard>
 
-      {/* Progreso */}
+      {/* 🔹 Progreso de carga */}
       {progresoCarga > 0 && progresoCarga < 100 && (
         <CCard className="shadow-sm border-0 bg-gray-900/10 dark:bg-gray-800/40">
           <CCardBody>
-            <h4 className="mb-3 font-semibold text-gray-800 dark:text-gray-100">
-              ⏳ Cargando lecturas...
-            </h4>
+            <h4 className="mb-3 font-semibold text-gray-800 dark:text-gray-100">⏳ Cargando lecturas...</h4>
             <p>{mensajeProgreso}</p>
             <Progress value={progresoCarga} className="h-3 bg-gray-200 dark:bg-gray-700" />
             <p className="text-xs text-gray-500 text-end">{progresoCarga.toFixed(0)}%</p>
@@ -287,14 +271,11 @@ const DashboardPredicciones = () => {
       )}
 
       {error && <CAlert color="danger">❌ {error}</CAlert>}
-
       {progresoCarga === 100 && !error && (
-        <CAlert color="success">
-          ✅ Descarga completada en {tiempoCarga.toFixed(0)} ms ({lecturas.length} registros)
-        </CAlert>
+        <CAlert color="success">✅ Descarga completada en {tiempoCarga.toFixed(0)} ms ({lecturas.length} registros)</CAlert>
       )}
 
-      {/* Gráfico */}
+      {/* 🔹 Gráfico mensual */}
       <CCard className="shadow-sm border-0 bg-gray-900/10 dark:bg-gray-800/40">
         <CCardBody>
           <h4 className="mb-3 font-semibold text-gray-800 dark:text-gray-100">
@@ -310,27 +291,9 @@ const DashboardPredicciones = () => {
               data={{
                 labels,
                 datasets: [
-                  {
-                    label: 'Costo Tradicional',
-                    borderColor: '#9ca3af',
-                    backgroundColor: 'rgba(156,163,175,0.2)',
-                    data: costoTradicional,
-                    fill: true,
-                  },
-                  {
-                    label: 'Costo Estimado (Modelo)',
-                    borderColor: '#3b82f6',
-                    backgroundColor: 'rgba(59,130,246,0.2)',
-                    data: costoEstimado,
-                    fill: true,
-                  },
-                  {
-                    label: 'Ahorro Simulado',
-                    borderColor: '#10b981',
-                    backgroundColor: 'rgba(16,185,129,0.2)',
-                    data: ahorroMensual,
-                    fill: true,
-                  },
+                  { label: 'Costo Tradicional', borderColor: '#9ca3af', backgroundColor: 'rgba(156,163,175,0.2)', data: costoTradicional, fill: true },
+                  { label: 'Costo Estimado (Modelo)', borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.2)', data: costoEstimado, fill: true },
+                  { label: 'Ahorro Simulado', borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,0.2)', data: ahorroMensual, fill: true },
                 ],
               }}
               options={{
@@ -338,20 +301,12 @@ const DashboardPredicciones = () => {
                 plugins: {
                   legend: { labels: { color: '#ccc' } },
                   tooltip: {
-                    callbacks: {
-                      label: (ctx) =>
-                        `${ctx.dataset.label}: S/. ${abreviarMonto(ctx.raw)}`,
-                    },
+                    callbacks: { label: (ctx) => `${ctx.dataset.label}: S/. ${abreviarMonto(ctx.raw)}` },
                   },
                 },
                 scales: {
                   x: { ticks: { color: '#ccc' } },
-                  y: {
-                    ticks: {
-                      color: '#ccc',
-                      callback: (v) => abreviarMonto(v),
-                    },
-                  },
+                  y: { ticks: { color: '#ccc', callback: (v) => abreviarMonto(v) } },
                 },
               }}
             />
@@ -359,12 +314,10 @@ const DashboardPredicciones = () => {
         </CCardBody>
       </CCard>
 
-      {/* Mapa */}
+      {/* 🔹 Mapa */}
       <CCard className="shadow-sm border-0 bg-gray-900/10 dark:bg-gray-800/40">
         <CCardBody>
-          <h4 className="mb-3 font-semibold text-gray-800 dark:text-gray-100">
-            🗺️ Mapa de Riego Recomendado
-          </h4>
+          <h4 className="mb-3 font-semibold text-gray-800 dark:text-gray-100">🗺️ Mapa de Riego Recomendado</h4>
           <MapaCalorGeografico lecturas={lecturasMapa} />
           <div className="small text-muted mt-3">
             Colores:&nbsp;
@@ -374,13 +327,12 @@ const DashboardPredicciones = () => {
           </div>
         </CCardBody>
       </CCard>
-      {/* Importancia de características */}
+
+      {/* 🔹 Importancia de características */}
       <CCard className="shadow-sm border-0 bg-gray-900/10 dark:bg-gray-800/40">
         <CCardBody>
-          <h4 className="mb-3 font-semibold text-gray-800 dark:text-gray-100">
-            🧠 Importancia de las Características del Modelo
-          </h4>
-          <ImportanciaCaracteristicas />
+          <h4 className="mb-3 font-semibold text-gray-800 dark:text-gray-100">🧠 Importancia de las Características del Modelo</h4>
+          <ImportanciaCaracteristicas datos={datosImportancia} />
         </CCardBody>
       </CCard>
     </motion.div>

@@ -1,136 +1,171 @@
-// src/components/RecomendacionRiego.jsx
-import React, { useMemo } from 'react'
+import React, { useState, useEffect } from "react";
 
-/**
- * RecomendacionRiego
- * ---------------------------------------------------------
- * Props:
- * - lecturas: array de lecturas (las mismas que usas en tu Dashboard)
- *             { fecha, cultivo, HumedadSuelo?, Evapotranspiracion?, Precipitacion?, DeficitHidrico?, ... }
- * - cultivoSeleccionado: string (ej. "Maíz", "Todos")
- * - areaHa: número (área del lote en hectáreas) -> default 1 ha
- * - metodoRiego: "Goteo" | "Aspersión" | "Surcos" -> para estimar eficiencia
- * - riegoTradicionalM3Ha: referencia histórica de riego por evento (m³/ha) -> default 50
- *
- * Nota:
- * - Si DeficitHidrico (mm) está presente en lecturas, se usa para la lámina recomendada.
- * - Si no, se estima con humedad/ET0 de forma conservadora.
- *
- * Conversión útil:
- *   1 mm sobre 1 ha = 10 m³
- */
+const RecomendacionRiego = () => {
+  const [cultivo, setCultivo] = useState("");
+  const [recomendacion, setRecomendacion] = useState(null);
+  const [historial, setHistorial] = useState([]);
+  const [error, setError] = useState(null);
+  const [loading, setLoading] = useState(false);
 
+  useEffect(() => {
+    const historialGuardado = localStorage.getItem("historialRiego");
+    if (historialGuardado) {
+      setHistorial(JSON.parse(historialGuardado));
+    }
+  }, []);
 
-const semaforo = {
-  HOY: { color: 'bg-red-500', text: 'Regar hoy' },
-  PRONTO: { color: 'bg-yellow-500', text: 'Regar en 1–2 días' },
-  NO: { color: 'bg-green-600', text: 'No regar ahora' },
-}
+  const obtenerRecomendacion = async () => {
+    if (!cultivo) {
+      setError("Por favor, selecciona un cultivo.");
+      return;
+    }
 
-function formatNumber(n, digits = 1) {
-  const v = Number(n ?? 0)
-  return v.toLocaleString(undefined, { maximumFractionDigits: digits, minimumFractionDigits: digits })
-}
+    setLoading(true);
+    setError(null);
 
-export default function RecomendacionRiego({
-  lecturas = [],
-  areaHa = 1,
-  metodoRiego = 'Goteo',
-  riegoTradicionalM3Ha = 50,
-}) {
-  // Transformar tu formato { Feature, DeltaAUC } a un objeto clave-valor
-  const valores = useMemo(() => {
-    const mapa = {}
-    lecturas.forEach((item) => {
-      mapa[item.Feature] = item.DeltaAUC
-    })
-    return mapa
-  }, [lecturas])
+    try {
+      const response = await fetch(
+        `http://localhost:5001/api/Predicciones/recomendacion?cultivo=${encodeURIComponent(
+          cultivo
+        )}`
+      );
 
-  const humedad = valores['HumedadSuelo']
-  const balance = valores['Balance_Agua']
-  const lluvia = valores['Precipitacion']
-  const radiacion = valores['RadiacionSolar']
-  const temp = valores['Temperatura']
+      if (!response.ok) {
+        throw new Error("No se pudo obtener la recomendación.");
+      }
 
-  // --- Interpretación simple de estado (semáforo)
-  let estado = 'NO'
+      const data = await response.json();
+      setRecomendacion(data);
 
-  if (humedad !== undefined && balance !== undefined) {
-    if (balance < -0.25 || humedad < -0.08) estado = 'HOY'
-    else if (balance < -0.10 || humedad < -0.04) estado = 'PRONTO'
-  }
+      const nuevaEntrada = {
+        fecha: new Date().toLocaleString(),
+        cultivo: data.cultivo,
+        mensaje: data.mensaje,
+        metodo: data.metodo_riego,
+      };
 
-  const eficiencia = eficienciaPorMetodo[metodoRiego] ?? 0.85
-  const laminaMm = Math.abs(balance * 100) // Escalado base
-  const laminaEfectivaMm = laminaMm / eficiencia
-  const volumenM3 = laminaEfectivaMm * areaHa * 10
+      const nuevoHistorial = [nuevaEntrada, ...historial].slice(0, 5);
+      setHistorial(nuevoHistorial);
+      localStorage.setItem("historialRiego", JSON.stringify(nuevoHistorial));
+    } catch (err) {
+      setError(err.message);
+      setRecomendacion(null);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  const tradicionalTotal = riegoTradicionalM3Ha * areaHa
-  const ahorroM3 = Math.max(0, tradicionalTotal - volumenM3)
-  const ahorroPct = (ahorroM3 / tradicionalTotal) * 100
+  const reproducirMensaje = () => {
+    if (recomendacion?.mensaje) {
+      const utterance = new SpeechSynthesisUtterance(recomendacion.mensaje);
+      utterance.lang = "es-PE";
+      utterance.rate = 1;
+      speechSynthesis.speak(utterance);
+    }
+  };
 
-  const sem = semaforo[estado]
+  // 🗑️ Nueva función para borrar el historial
+  const borrarHistorial = () => {
+    if (window.confirm("¿Seguro que deseas borrar todo el historial?")) {
+      setHistorial([]);
+      localStorage.removeItem("historialRiego");
+    }
+  };
 
   return (
-    <div className="rounded-2xl p-5 bg-gradient-to-br from-emerald-900/40 to-slate-900/40 text-slate-100 shadow">
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="text-xl font-bold">🌾 Recomendación de Riego</h3>
-        <span className={`px-3 py-1 rounded-full text-sm font-semibold ${sem.color}`}>
-          {sem.text}
-        </span>
-      </div>
+    <div
+      className="card p-5 rounded-lg max-w-md mx-auto 
+                  bg-gray-800 text-white shadow-xl border border-gray-700"
+    >
+      <h2 className="text-2xl font-bold mb-4 flex items-center gap-2">
+        💧 Recomendación de Riego
+      </h2>
 
-      <div className="grid md:grid-cols-3 gap-4">
-        {/* Bloque 1 */}
-        <div className="rounded-xl bg-slate-900/40 p-4">
-          <p className="text-sm text-slate-300 mb-1">Condiciones del cultivo</p>
-          <div className="space-y-1 text-sm">
-            <p>🌡️ Temperatura: {formatNumber(temp)} (ΔAUC)</p>
-            <p>💧 Humedad Suelo: {formatNumber(humedad)}</p>
-            <p>☀️ Radiación Solar: {formatNumber(radiacion)}</p>
-            <p>🌧️ Precipitación: {formatNumber(lluvia)}</p>
-            <p>⚖️ Balance de Agua: {formatNumber(balance)}</p>
+      <select
+        className="border border-gray-600 bg-gray-700 text-white p-2 rounded w-full mb-3"
+        value={cultivo}
+        onChange={(e) => setCultivo(e.target.value)}
+      >
+        <option value="">Selecciona un cultivo</option>
+        <option value="Maíz">Maíz</option>
+        <option value="Espárrago">Espárrago</option>
+        <option value="Mango">Mango</option>
+        <option value="Palta">Palta</option>
+        <option value="Plátano">Plátano</option>
+      </select>
+
+      <button
+        onClick={obtenerRecomendacion}
+        disabled={loading}
+        className={`w-full px-4 py-2 rounded text-white font-medium transition-all
+        ${
+          loading
+            ? "bg-gray-500 cursor-not-allowed"
+            : "bg-green-600 hover:bg-green-700"
+        }`}
+      >
+        {loading ? "Consultando..." : "Obtener recomendación"}
+      </button>
+
+      {error && <p className="mt-3 text-red-400">{error}</p>}
+
+      {recomendacion && (
+        <div className="mt-5 border-t border-gray-600 pt-3">
+          <h3 className="font-semibold text-lg mb-2">{recomendacion.cultivo}</h3>
+          <p className="text-gray-300 mb-3">{recomendacion.mensaje}</p>
+
+          <button
+            onClick={reproducirMensaje}
+            className="flex items-center gap-2 text-blue-400 hover:text-blue-300 mb-3"
+          >
+            🔊 Escuchar recomendación
+          </button>
+
+          <ul className="text-sm text-gray-300 space-y-1">
+            <li>
+              <strong>Método:</strong> {recomendacion.metodo_riego}
+            </li>
+            <li>
+              <strong>Lámina neta:</strong> {recomendacion.lamina_neta_mm} mm
+            </li>
+            <li>
+              <strong>Eficiencia:</strong> {recomendacion.eficiencia}
+            </li>
+            <li>
+              <strong>Volumen recomendado:</strong>{" "}
+              {recomendacion.volumen_recomendado_m3} m³
+            </li>
+          </ul>
+        </div>
+      )}
+
+      {historial.length > 0 && (
+        <div className="mt-6 border-t border-gray-600 pt-3">
+          <div className="flex items-center justify-between mb-2">
+            <h4 className="font-semibold text-md text-yellow-400">
+              📜 Historial reciente
+            </h4>
+            <button
+              onClick={borrarHistorial}
+              className="text-sm text-red-400 hover:text-red-300 transition-colors"
+            >
+              🗑️ Borrar historial
+            </button>
           </div>
+
+          <ul className="text-sm text-gray-300 space-y-2">
+            {historial.map((item, index) => (
+              <li key={index} className="border-b border-gray-700 pb-2">
+                <strong>{item.cultivo}</strong> — {item.mensaje}
+                <br />
+                <span className="text-gray-500 text-xs">{item.fecha}</span>
+              </li>
+            ))}
+          </ul>
         </div>
-
-        {/* Bloque 2 */}
-        <div className="rounded-xl bg-slate-900/40 p-4">
-          <p className="text-sm text-slate-300 mb-1">Volumen recomendado</p>
-          <p className="text-3xl font-extrabold">
-            {formatNumber(volumenM3, 0)} <span className="text-base font-semibold">m³</span>
-          </p>
-          <p className="text-slate-300 mt-2">
-            Lámina: <span className="font-semibold">{formatNumber(laminaEfectivaMm, 1)} mm</span>  
-            ({formatNumber(laminaMm, 1)} mm bruta · eficiencia {formatNumber(eficiencia * 100, 0)}%)
-          </p>
-
-          <div className="mt-4">
-            <div className="h-2 w-full bg-slate-700 rounded-full overflow-hidden">
-              <div
-                className={`h-2 ${sem.color}`}
-                style={{ width: `${Math.min(100, (laminaEfectivaMm / 40) * 100)}%` }}
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* Bloque 3 */}
-        <div className="rounded-xl bg-slate-900/40 p-4">
-          <p className="text-sm text-slate-300 mb-1">Ahorro estimado</p>
-          <p className="text-3xl font-extrabold text-emerald-400">
-            {formatNumber(ahorroM3, 0)} <span className="text-base font-semibold text-slate-200">m³</span>
-          </p>
-          <p className="text-slate-300">
-            ({formatNumber(ahorroPct, 0)}% menos que el tradicional)
-          </p>
-        </div>
-      </div>
-
-      <p className="mt-4 text-sm text-slate-400">
-        Consejo: prioriza riegos tempranos (mañana/tarde) para reducir evaporación. Si se esperan lluvias,
-        reduce el volumen en esa proporción.
-      </p>
+      )}
     </div>
-  )
-}
+  );
+};
+
+export default RecomendacionRiego;
